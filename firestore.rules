@@ -1,0 +1,97 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Root Admin Check (Fast, No DB Read)
+    function isRootAdmin() {
+      return isSignedIn() && request.auth.token.email == "fxbrosinvestments00@gmail.com";
+    }
+
+    // Role-based Admin Check (Slower, DB Read)
+    // IMPORTANT: Avoid using this in rules for the 'users' collection itself to prevent recursion.
+    function isDbAdmin() {
+      return isSignedIn() && 
+             (isRootAdmin() || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isAdmin', false) == true);
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Users Collection ---
+    match /users/{userId} {
+      // Use isRootAdmin here instead of isDbAdmin to prevent recursion
+      allow get: if isOwner(userId) || isRootAdmin();
+      allow list: if isRootAdmin() || isDbAdmin();
+      
+      function isValidUser(data) {
+        return data.keys().hasAll(['uid', 'email', 'name', 'isPremium', 'isAdmin', 'plan', 'analysisLimit', 'isApproved']) 
+               && data.uid is string && data.uid == request.auth.uid
+               && data.email is string && data.email == request.auth.token.email
+               && data.name is string && data.name.size() <= 100
+               && (data.isPremium is bool || data.isPremium == null)
+               && (data.isAdmin is bool || data.isAdmin == null)
+               && data.plan in ['basic', 'pro', 'elite']
+               && (data.analysisLimit is int || data.analysisLimit == null)
+               && (data.isApproved is bool || data.isApproved == null);
+      }
+
+      allow create: if isOwner(userId) 
+                    && isValidUser(incoming())
+                    // Security: Root Admin can create anyone, others created as non-privileged
+                    && (incoming().isAdmin == false || isRootAdmin())
+                    && (incoming().isApproved == false || isRootAdmin());
+
+      allow update: if (
+        isRootAdmin() || isDbAdmin() || 
+        (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['name']))
+      );
+      
+      allow delete: if isRootAdmin();
+    }
+
+    // --- Signals Collection ---
+    match /signals/{signalId} {
+      allow get, list: if isSignedIn() && (resource.data.userId == request.auth.uid || isDbAdmin());
+      
+      function isValidSignal(data) {
+        return data.keys().hasAll(['userId', 'pair', 'timeframe', 'decision', 'score', 'timestamp', 'result'])
+               && data.userId == request.auth.uid
+               && data.pair is string && data.pair.size() <= 20
+               && data.timeframe is string && data.timeframe.size() <= 10
+               && data.decision is string
+               && data.score is int && data.score >= 0 && data.score <= 100
+               && data.timestamp is int
+               && data.result is string;
+      }
+
+      allow create: if isSignedIn() 
+                    && isValidSignal(incoming())
+                    // Check approval status (Requires DB read)
+                    && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isApproved == true;
+
+      allow update, delete: if isDbAdmin();
+    }
+  }
+}
