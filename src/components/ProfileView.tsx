@@ -95,8 +95,12 @@ export const ProfileView: React.FC<{
       <div className="flex flex-col md:flex-row gap-6">
         <div className="w-full md:w-1/3 space-y-6">
           <div className="glass-card p-6 border-zinc-800/50 flex flex-col items-center text-center space-y-4">
-            <div className="w-20 h-20 bg-brand-red/10 rounded-full flex items-center justify-center">
-              <User size={32} className="text-brand-red" />
+            <div className="w-24 h-24 bg-brand-red/10 rounded-2xl overflow-hidden border border-white/10 shadow-xl">
+              <img 
+                src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.uid}`} 
+                alt="Avatar" 
+                className="w-full h-full object-cover"
+              />
             </div>
             <div>
               <h3 className="text-lg font-black text-white">{userData?.name || user?.displayName || 'User'}</h3>

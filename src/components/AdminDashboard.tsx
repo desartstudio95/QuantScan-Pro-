@@ -127,8 +127,12 @@ export const AdminDashboard: React.FC = () => {
                 <tr key={user.uid} className="border-b border-white/5 hover:bg-white/5 transition-colors group">
                   <td className="p-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-brand-red/10 flex items-center justify-center text-brand-red text-sm font-black italic shrink-0">
-                        {user.name?.charAt(0) || user.email?.charAt(0)?.toUpperCase()}
+                      <div className="w-10 h-10 rounded-xl bg-brand-red/10 overflow-hidden shrink-0 border border-white/10 group-hover:border-brand-red/30 transition-colors">
+                        <img 
+                          src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`} 
+                          alt={user.name} 
+                          className="w-full h-full object-cover"
+                        />
                       </div>
                       <div className="flex flex-col truncate min-w-0">
                         <span className="text-sm font-bold text-white leading-none mb-1 truncate">{user.name}</span>

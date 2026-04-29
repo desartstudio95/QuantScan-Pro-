@@ -6,9 +6,10 @@ interface NavbarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   isAdmin?: boolean;
+  user?: any;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, isAdmin }) => {
+export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, isAdmin, user }) => {
   const mainTabs = [
     { id: 'scan', label: 'Scan IA', icon: LayoutDashboard },
     { id: 'history', label: 'Histórico', icon: History },
@@ -91,6 +92,21 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, isAdmin
 
         {/* Account Section */}
         <div className="flex flex-col gap-1 w-full mt-auto mb-2">
+          {user && (
+            <div className="flex items-center gap-3 p-3 mb-2 bg-white/5 rounded-xl border border-white/5">
+              <div className="w-8 h-8 rounded-lg overflow-hidden border border-white/10 shrink-0">
+                <img 
+                  src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`} 
+                  alt="My Avatar"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="flex flex-col truncate">
+                <span className="text-[10px] font-black uppercase text-white truncate leading-tight">Meus Dados</span>
+                <span className="text-[8px] font-medium text-zinc-500 truncate leading-tight italic">ID: {user.uid.slice(0, 8)}...</span>
+              </div>
+            </div>
+          )}
           <div className="px-3 mb-1 text-[10px] font-black uppercase text-zinc-600 tracking-[0.2em]">Conta & Ajuda</div>
           {accountTabs.map((tab) => (
             <button

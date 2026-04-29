@@ -12,6 +12,7 @@ import { PlansView } from './components/PlansView';
 import { AdminDashboard } from './components/AdminDashboard';
 import { LandingPage } from './components/LandingPage';
 import { ProfileView } from './components/ProfileView';
+import { MarketTicker } from './components/MarketTicker';
 import { TrendingUp, ShieldAlert, Ghost, Mail, Lock, UserPlus, LogIn, Loader2, ArrowLeft, User as UserIcon, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, signOut, sendEmailVerification, sendPasswordResetEmail, User, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'firebase/auth';
@@ -208,7 +209,12 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="h-screen w-full flex items-center justify-center bg-brand-dark">
+      <div className="h-screen w-full flex flex-col items-center justify-center bg-brand-dark gap-6">
+        <img 
+          src="https://i.ibb.co/9BwbV3M/FXBROS-WORLD-3.png" 
+          alt="Logo" 
+          className="w-24 h-24 object-contain animate-pulse"
+        />
         <div className="w-10 h-10 border-4 border-brand-red border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
@@ -543,11 +549,16 @@ export default function App() {
         <div className="absolute inset-0 bg-gradient-to-b from-brand-dark/40 via-brand-dark/20 to-brand-dark" />
       </div>
 
-      <Navbar activeTab={activeTab} setActiveTab={setActiveTab} isAdmin={isAdmin} />
+      <Navbar activeTab={activeTab} setActiveTab={setActiveTab} isAdmin={isAdmin} user={user} />
       
-      <main className="flex-1 overflow-y-auto overflow-x-hidden relative z-10">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden relative z-10 flex flex-col">
+        {/* Market Ticker */}
+        <div className="w-full shrink-0">
+          <MarketTicker />
+        </div>
+
         {/* Desktop Header */}
-        <header className="hidden md:flex items-center justify-between p-8 pb-4 max-w-6xl mx-auto">
+        <header className="hidden md:flex items-center justify-between p-8 pb-4 max-w-6xl w-full mx-auto">
           <div className="space-y-1">
             <span className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1">Olá Humano, Bem-Vindo</span>
             <h2 className="text-2xl font-black italic uppercase tracking-tighter text-white">

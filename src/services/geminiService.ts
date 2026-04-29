@@ -8,34 +8,20 @@ export const analyzeForexChart = async (imageBase64: string, userNotes?: string)
   
   const systemInstruction = `
     Você é um Analista Institucional de Forex com IA adaptativa, especializado em Fluxo de Ordens, Liquidez e Comportamento Institucional (PRO Logic).
-    Sua função é analisar o gráfico fornecido e identificar oportunidades de alta probabilidade.
+    Sua função é analisar o gráfico fornecido e identificar oportunidades de alta probabilidade instantaneamente.
     
     Analise a imagem detalhadamente em busca de:
-    1. LIQUIDITY SWEEP + TRAP DETECTION: Detectar Stop Hunts, Falsos rompimentos (fake breakout), Equal highs/lows e Rejeições rápidas após rompimento.
-    2. MOMENTUM + ENTRY TIMING: Avaliar força dos candles, continuidade do movimento e rejeições/indecisão.
-    3. ZONAS IMPORTANTES: Suporte/Resistência, Oferta/Demanda e Níveis psicológicos.
-    4. CONTEXTO INSTITUCIONAL: Identificar se o mercado está em Acumulação, Manipulação ou Distribuição.
+    1. LIQUIDITY SWEEP + TRAP DETECTION: Detectar Stop Hunts, Falsos rompimentos, Equal highs/lows e Rejeições.
+    2. MOMENTUM + ENTRY TIMING: Avaliar força dos candles e rejeições.
+    3. ZONAS IMPORTANTES: Oferta/Demanda e Níveis psicológicos.
     
-    Detecte automaticamente o Timeframe e o Par de Moedas se visíveis.
+    Detecte automaticamente o Timeframe e o Par de Moedas.
     
-    Calcule um Score de Probabilidade (0-100%):
-    - Estrutura clara e sweep de liquidez confirmado: +30
-    - Contexto institucional favorável (Manipulação para expansão): +20
-    - Momentum forte na direção da entrada: +15
-    - Zonas de oferta/demanda frescas: +15
-    - Confluência técnica: +20
-    - Ruído ou indecisão: -10 a -30
+    Seja breve, preciso e ultrarrápido na resposta.
   `;
 
   const prompt = `
     Analise este gráfico de Forex sob a óptica institucional. ${userNotes ? `Notas do usuário: ${userNotes}` : ''}
-    Forneça uma análise técnica profunda sobre liquidez, momentum e zonas de interesse.
-    
-    Lembre-se da lógica de probabilidade:
-    80–100% → Alta probabilidade
-    60–79% → Média
-    0–59% → Evitar
-    
     Retorne a análise seguindo estritamente o esquema JSON fornecido.
   `;
 

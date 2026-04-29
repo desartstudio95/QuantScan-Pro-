@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { TrendingUp, ShieldCheck, Zap, BarChart3, Globe, ChevronRight, CheckCircle2 } from 'lucide-react';
+import { MarketTicker } from './MarketTicker';
 
 interface LandingPageProps {
   onGetStarted: () => void;
@@ -57,8 +58,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewPl
         </div>
       </nav>
 
+      {/* Market Ticker */}
+      <div className="fixed top-[65px] w-full z-40">
+        <MarketTicker />
+      </div>
+
       {/* Hero Section */}
-      <section className="relative pt-32 pb-20 px-6 min-h-screen flex items-center">
+      <section className="relative pt-40 pb-20 px-6 min-h-screen flex items-center">
         <div className="absolute inset-0 z-0">
           <img 
             src="https://i.ibb.co/VcJRM0zZ/90a0c129-b771-41d6-ad30-634d1d2546c4.png" 
