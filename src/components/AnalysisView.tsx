@@ -276,7 +276,7 @@ export const AnalysisView: React.FC<{ userData?: any }> = ({ userData }) => {
                     strokeDashoffset={283 - (283 * result.score) / 100}
                     className={cn(
                       "transition-all duration-1000 ease-out",
-                      result.decision === SignalType.BUY ? "text-green-500" : "text-brand-red"
+                      result.decision === SignalType.BUY ? "text-green-500" : (result.decision === SignalType.SELL ? "text-brand-red" : "text-zinc-500")
                     )}
                     strokeLinecap="round"
                     transform="rotate(-90 50 50)"
@@ -285,7 +285,7 @@ export const AnalysisView: React.FC<{ userData?: any }> = ({ userData }) => {
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                   <span className={cn(
                     "text-4xl font-black leading-none",
-                    result.decision === SignalType.BUY ? "text-green-500" : "text-brand-red red-text-glow"
+                    result.decision === SignalType.BUY ? "text-green-500" : (result.decision === SignalType.SELL ? "text-brand-red red-text-glow" : "text-zinc-500")
                   )}>
                     {result.score}%
                   </span>
@@ -319,6 +319,11 @@ export const AnalysisView: React.FC<{ userData?: any }> = ({ userData }) => {
 
             {/* Trading Decision */}
             <div className="glass-card space-y-4">
+              <div className="text-center">
+                <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest bg-white/5 px-2 py-0.5 rounded">
+                    {result.pair}
+                </span>
+              </div>
               <div className={cn(
                 "w-full py-5 rounded-lg flex flex-col items-center justify-center gap-1",
                 result.decision === SignalType.BUY ? "bg-green-500/10 text-green-500" : 

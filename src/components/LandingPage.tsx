@@ -208,7 +208,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewPl
             <div className="grid grid-cols-2 gap-4">
                <div className="space-y-4">
                   <div className="glass-card p-6 text-center border-white/5">
-                    <p className="text-3xl font-black text-brand-red">82%</p>
+                    <p className="text-3xl font-black text-brand-red">90%</p>
                     <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Precisão média</p>
                   </div>
                   <div className="glass-card p-6 text-center border-white/5">
@@ -226,6 +226,44 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewPl
                     <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Adaptativa</p>
                   </div>
                </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Info Section - IA QuantScanner */}
+      <section className="py-20 px-6 bg-zinc-900/30">
+        <div className="max-w-4xl mx-auto space-y-12 text-center md:text-left">
+          <div className="space-y-4">
+            <h2 className="text-3xl md:text-4xl font-black uppercase italic tracking-tighter text-white">
+              IA <span className="text-brand-red">QuantScanner</span>: <br className="hidden md:block" /> O Futuro do Mercado.
+            </h2>
+            <p className="text-zinc-400 text-lg">
+              O **IA QuantScanner** é uma ferramenta avançada baseada em Inteligência Artificial desenvolvida 
+              para analisar o mercado financeiro em tempo real, com foco especial em **Forex, índices e criptomoedas**.
+            </p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="space-y-2">
+              <h4 className="font-black uppercase tracking-widest text-brand-red">📊 ANÁLISE</h4>
+              <p className="text-sm text-zinc-500">Técnica automatizada que identifica padrões, suportes e resistências.</p>
+            </div>
+            <div className="space-y-2">
+              <h4 className="font-black uppercase tracking-widest text-brand-red">🤖 IA</h4>
+              <p className="text-sm text-zinc-500">Aprende continuamente com dados históricos e comportamento do mercado.</p>
+            </div>
+            <div className="space-y-2">
+              <h4 className="font-black uppercase tracking-widest text-brand-red">⏱️ MONITORAMENTO</h4>
+              <p className="text-sm text-zinc-500">Escaneia múltiplos ativos 24/7 para detectar oportunidades instantâneas.</p>
+            </div>
+          </div>
+
+          <div className="glass-card p-8 border-brand-red/10 space-y-4">
+            <h3 className="font-black uppercase text-xl">Testemunhos</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-zinc-400">
+                <p><em>"Desde que comecei a usar o IA QuantScanner, minhas entradas ficaram muito mais precisas. Reduzi minhas perdas e aumentei meus lucros em poucas semanas."</em> <br/>– **Carlos M.**</p>
+                <p><em>"A velocidade com que o sistema identifica oportunidades é impressionante. É como ter um analista profissional trabalhando para mim 24h."</em> <br/>– **João D.**</p>
             </div>
           </div>
         </div>

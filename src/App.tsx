@@ -12,6 +12,7 @@ import { PlansView } from './components/PlansView';
 import { AdminDashboard } from './components/AdminDashboard';
 import { LandingPage } from './components/LandingPage';
 import { ProfileView } from './components/ProfileView';
+import { NotificationManager } from './components/NotificationManager';
 import { TrendingUp, ShieldAlert, Ghost, Mail, Lock, UserPlus, LogIn, Loader2, ArrowLeft, User as UserIcon, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, signOut, sendEmailVerification, sendPasswordResetEmail, User, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'firebase/auth';
@@ -538,6 +539,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-brand-dark text-white flex flex-col md:flex-row pb-20 md:pb-0 relative overflow-hidden">
+      <NotificationManager />
       {/* Background Image for App */}
       <div className="absolute inset-0 z-0 pointer-events-none">
         <img 
