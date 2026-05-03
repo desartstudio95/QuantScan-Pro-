@@ -15,6 +15,7 @@ export const AnalysisView: React.FC<{ userData?: any }> = ({ userData }) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState<AnalysisResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<'Técnico' | 'Fundamental' | 'Híbrido'>('Híbrido');
   const [usageInfo, setUsageInfo] = useState<{ used: number, limit: number }>({ used: 0, limit: userData?.analysisLimit ?? 8 });
 
   useEffect(() => {
@@ -71,7 +72,7 @@ export const AnalysisView: React.FC<{ userData?: any }> = ({ userData }) => {
       }
 
       const base64 = preview.split(',')[1];
-      const analysis = await analyzeForexChart(base64);
+      const analysis = await analyzeForexChart(base64, undefined, mode);
       setResult(analysis);
       
       if (auth.currentUser) {
@@ -150,9 +151,39 @@ export const AnalysisView: React.FC<{ userData?: any }> = ({ userData }) => {
       </header>
 
       {!result ? (
-        <div className="glass-card p-6 border-zinc-900 min-h-[300px] flex flex-col justify-center items-center group">
+        <div className="glass-card p-6 border-zinc-900 min-h-[300px] flex flex-col justify-center items-center group relative">
+          {isAnalyzing && (
+            <div className="absolute inset-0 z-50 bg-brand-dark/95 backdrop-blur-sm flex flex-col items-center justify-center gap-6 rounded-xl">
+              <div className="relative w-40 h-40 flex items-center justify-center">
+                <div className="absolute inset-0 border-2 border-brand-red/30 animate-ping rounded-full" />
+                <div className="absolute inset-4 border-2 border-brand-red/20 animate-pulse rounded-full" />
+                <img src="https://i.ibb.co/9BwbV3M/FXBROS-WORLD-3.png" className="w-16 h-16 animate-pulse" alt="Logo" />
+                <motion.div
+                  initial={{ top: '0%' }}
+                  animate={{ top: '100%' }}
+                  transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+                  className="absolute left-0 right-0 h-[2px] bg-brand-red shadow-[0_0_15px_rgba(255,0,0,0.8)]"
+                />
+              </div>
+              <p className="text-brand-red font-black text-lg italic tracking-tighter animate-pulse uppercase">Processando Scan Institucional...</p>
+            </div>
+          )}
           {!preview ? (
             <div className="w-full flex flex-col gap-4 items-center justify-center">
+              <div className="flex gap-2 mb-4 w-full justify-center">
+                 {(['Técnico', 'Fundamental', 'Híbrido'] as const).map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => setMode(m)}
+                      className={cn(
+                        "px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all",
+                        mode === m ? "bg-brand-red text-white" : "bg-white/5 text-white/50 hover:bg-white/10"
+                      )}
+                    >
+                      {m}
+                    </button>
+                 ))}
+              </div>
               <div 
                 {...getRootProps()} 
                 className={cn(
@@ -271,16 +302,17 @@ export const AnalysisView: React.FC<{ userData?: any }> = ({ userData }) => {
                   {result.score >= 80 ? '🔥 ALTA PROBABILIDADE' : result.score >= 60 ? '⚖️ MÉDIA PROBABILIDADE' : '❌ EVITAR'}
                 </h3>
                 <p className="text-zinc-500 mt-1 text-[10px] font-medium max-w-[200px]">{result.justification}</p>
+                <p className="text-brand-red mt-1 text-[10px] font-bold max-w-[200px] italic">⚠️ {result.alerta}</p>
               </div>
 
               <div className="w-full pt-4 border-t border-white/5 flex gap-3">
                 <div className="flex-1 glass-card p-2">
-                  <span className="block text-[8px] text-zinc-600 uppercase font-black mb-0.5">PAR</span>
-                  <span className="text-base font-black">{result.pair}</span>
+                  <span className="block text-[8px] text-zinc-600 uppercase font-black mb-0.5">MODO</span>
+                  <span className="text-xs font-black">{result.mode}</span>
                 </div>
                 <div className="flex-1 glass-card p-2">
                   <span className="block text-[8px] text-zinc-600 uppercase font-black mb-0.5">TF</span>
-                  <span className="text-base font-black">{result.timeframe}</span>
+                  <span className="text-xs font-black">{result.timeframe}</span>
                 </div>
               </div>
             </div>
@@ -298,7 +330,7 @@ export const AnalysisView: React.FC<{ userData?: any }> = ({ userData }) => {
                    result.decision === SignalType.SELL ? 'VENDER' : 
                    'AGUARDAR'}
                 </span>
-                <span className="text-[8px] uppercase font-black tracking-widest opacity-60">Status do Signal</span>
+                <span className="text-[8px] uppercase font-black tracking-widest opacity-60">Decisão QuantScan</span>
               </div>
 
               <div className="space-y-2">
@@ -327,55 +359,30 @@ export const AnalysisView: React.FC<{ userData?: any }> = ({ userData }) => {
             </div>
           </div>
 
-          {/* New Institutional Analysis Section */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="glass-card space-y-4">
               <h4 className="text-[10px] font-black uppercase tracking-widest text-brand-red flex items-center gap-2">
-                <Zap size={14} /> LIQUIDITY SWEEP + TRAP DETECTION
+                <BrainCircuit size={14} /> ANÁLISE TÉCNICA (SMC + LIQ)
               </h4>
               <p className="text-xs text-zinc-400 leading-relaxed font-medium">
-                {result.liquiditySweep || 'Nenhum sweep relevante detectado.'}
+                {result.tecnica}
               </p>
             </div>
             <div className="glass-card space-y-4">
               <h4 className="text-[10px] font-black uppercase tracking-widest text-green-500 flex items-center gap-2">
-                <TrendingUp size={14} /> MOMENTUM + ENTRY TIMING
+                <TrendingUp size={14} /> ANÁLISE FUNDAMENTAL
               </h4>
               <p className="text-xs text-zinc-400 leading-relaxed font-medium">
-                {result.momentum || 'Momentum neutro para este timeframe.'}
+                {result.fundamental}
               </p>
             </div>
-            <div className="glass-card space-y-4">
+             <div className="glass-card space-y-4 col-span-full">
               <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400 flex items-center gap-2">
-                <Target size={14} /> ZONAS IMPORTANTES
+                <Target size={14} /> ANALISE GERAL
               </h4>
-              <div className="flex flex-wrap gap-2">
-                {result.keyZones?.map((zone, i) => (
-                  <span key={i} className="px-2 py-1 bg-white/5 rounded text-[10px] font-bold text-zinc-300 border border-white/5 uppercase">
-                    {zone}
-                  </span>
-                )) || <span className="text-xs text-zinc-500 italic">Identificando zonas...</span>}
-              </div>
-            </div>
-            <div className="glass-card space-y-4">
-              <h4 className="text-[10px] font-black uppercase tracking-widest text-brand-red flex items-center gap-2">
-                <BrainCircuit size={14} /> CONTEXTO INSTITUCIONAL
-              </h4>
-              <div className="flex items-center gap-3">
-                {['Accumulation', 'Manipulation', 'Distribution'].map((stage) => (
-                  <div 
-                    key={stage}
-                    className={cn(
-                      "flex-1 py-2 text-center rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all",
-                      result.institutionalContext === stage 
-                        ? "bg-brand-red text-white shadow-[0_0_15px_rgba(255,0,0,0.3)]" 
-                        : "bg-white/5 text-zinc-600 grayscale"
-                    )}
-                  >
-                    {stage === 'Accumulation' ? 'Acumulação' : stage === 'Manipulation' ? 'Manipulação' : 'Distribuição'}
-                  </div>
-                ))}
-              </div>
+              <p className="text-xs text-zinc-300 leading-relaxed font-medium">
+                  {result.analiseGeral}
+              </p>
             </div>
           </div>
 
@@ -429,30 +436,6 @@ export const AnalysisView: React.FC<{ userData?: any }> = ({ userData }) => {
                  transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
                  className="absolute left-0 right-0 h-px bg-brand-red/50 z-30 shadow-[0_0_10px_rgba(255,0,0,0.5)]"
                />
-            </div>
-          </div>
-
-          {/* Detailed IA Analysis */}
-          <div className="glass-card space-y-3">
-            <h3 className="text-xs font-black flex items-center gap-2 uppercase italic tracking-wider">
-              <TrendingUp size={14} className="text-brand-red" />
-              IA Logic Check
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               <div>
-                 <span className="text-[8px] uppercase text-zinc-600 font-black block mb-1">Estrutura Dominante</span>
-                 <p className="text-zinc-400 text-xs leading-relaxed font-medium">{result.structure}</p>
-               </div>
-               <div>
-                 <span className="text-[8px] uppercase text-zinc-600 font-black block mb-1">Confluências</span>
-                 <div className="flex flex-wrap gap-1.5">
-                   {result.conceptsDetected.map((c, i) => (
-                     <span key={i} className="px-2 py-0.5 bg-white/5 rounded text-[9px] font-black text-zinc-400 border border-white/5 uppercase tracking-tighter">
-                       {c}
-                     </span>
-                   ))}
-                 </div>
-               </div>
             </div>
           </div>
 

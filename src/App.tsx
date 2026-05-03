@@ -12,7 +12,6 @@ import { PlansView } from './components/PlansView';
 import { AdminDashboard } from './components/AdminDashboard';
 import { LandingPage } from './components/LandingPage';
 import { ProfileView } from './components/ProfileView';
-import { MarketTicker } from './components/MarketTicker';
 import { TrendingUp, ShieldAlert, Ghost, Mail, Lock, UserPlus, LogIn, Loader2, ArrowLeft, User as UserIcon, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, signOut, sendEmailVerification, sendPasswordResetEmail, User, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'firebase/auth';
@@ -552,11 +551,6 @@ export default function App() {
       <Navbar activeTab={activeTab} setActiveTab={setActiveTab} isAdmin={isAdmin} user={user} />
       
       <main className="flex-1 overflow-y-auto overflow-x-hidden relative z-10 flex flex-col">
-        {/* Market Ticker */}
-        <div className="w-full shrink-0">
-          <MarketTicker />
-        </div>
-
         {/* Desktop Header */}
         <header className="hidden md:flex items-center justify-between p-8 pb-4 max-w-6xl w-full mx-auto">
           <div className="space-y-1">
@@ -565,7 +559,6 @@ export default function App() {
               {activeTab === 'scan' && 'Scanner de IA'}
               {activeTab === 'history' && 'Histórico de Sinais'}
               {activeTab === 'stats' && 'Performance & Dados'}
-              {activeTab === 'plans' && 'Nossos Planos'}
               {activeTab === 'profile' && 'Perfil do Usuário'}
               {activeTab === 'admin' && 'Painel Administrativo'}
             </h2>
@@ -576,14 +569,6 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-4">
-            {activeTab !== 'plans' && !userData?.isPremium && (
-              <button 
-                onClick={() => setActiveTab('plans')}
-                className="bg-brand-red/10 border border-brand-red/20 text-brand-red px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest hover:bg-brand-red/20 transition-all"
-              >
-                Upgrade Pro
-              </button>
-            )}
             <button onClick={handleLogout} className="glass-card !p-2 text-zinc-500 hover:text-white transition-all">
               <LogIn size={20} className="rotate-180" />
             </button>
@@ -620,7 +605,6 @@ export default function App() {
               {activeTab === 'scan' && <AnalysisView userData={userData} />}
               {activeTab === 'history' && <SignalHistory />}
               {activeTab === 'stats' && <DashboardStats />}
-              {activeTab === 'plans' && <PlansView />}
               {activeTab === 'profile' && <ProfileView user={user} userData={userData} onUpdate={setUserData} onDeleted={handleLogout} />}
               {activeTab === 'admin' && isAdmin && <AdminDashboard />}
             </motion.div>

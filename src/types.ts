@@ -18,8 +18,6 @@ export enum SignalResult {
 
 export interface Signal {
   id: string;
-  pair: string;
-  timeframe: string;
   timestamp: number;
   type: SignalType;
   entry: string;
@@ -27,10 +25,18 @@ export interface Signal {
   takeProfit: string;
   score: number;
   justification: string;
-  logicElements: string[];
   result: SignalResult;
   screenshotUrl?: string;
   userId: string;
+  // QuantScan IA fields
+  mode: string;
+  pair: string;
+  analiseGeral: string;
+  timeframe: string;
+  estrutura: string;
+  tecnica: string;
+  fundamental: string;
+  alerta: string;
 }
 
 export interface UserStats {
@@ -45,18 +51,18 @@ export interface UserStats {
 }
 
 export interface AnalysisResponse {
+  mode: 'Técnico' | 'Fundamental' | 'Híbrido';
+  analiseGeral: string;
   pair: string;
   timeframe: string;
-  structure: string;
-  conceptsDetected: string[];
+  estrutura: string;
+  tecnica: string;
+  fundamental: string;
   decision: SignalType;
   entry: string;
   stopLoss: string;
   takeProfit: string;
   score: number;
   justification: string;
-  liquiditySweep?: string;
-  momentum?: string;
-  keyZones?: string[];
-  institutionalContext?: 'Accumulation' | 'Manipulation' | 'Distribution' | 'None';
+  alerta: string;
 }

@@ -17,7 +17,6 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, isAdmin
   ];
 
   const accountTabs = [
-    { id: 'plans', label: 'Planos', icon: CreditCard },
     { id: 'profile', label: 'Perfil', icon: User },
   ];
 

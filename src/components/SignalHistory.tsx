@@ -17,14 +17,8 @@ export const SignalHistory: React.FC = () => {
       where('userId', '==', auth.currentUser.uid)
     );
 
-    // Force refresh every hour
-    const refreshInterval = setInterval(() => {
-      // Small trick to trigger a re-subscribe if necessary, 
-      // though onSnapshot should technically handle it.
-      // This satisfies the explicit request to refresh hourly.
-      console.log('Refreshing signal history...');
-    }, 60 * 60 * 1000);
-
+    // The onSnapshot listener below automatically handles updates
+    // when data in Firestore changes.
     const unsubscribe = onSnapshot(q, (snapshot) => {
       let newSignals: Signal[] = [];
       snapshot.forEach((doc) => {
@@ -39,7 +33,6 @@ export const SignalHistory: React.FC = () => {
     });
 
     return () => {
-      clearInterval(refreshInterval);
       unsubscribe();
     };
   }, []);

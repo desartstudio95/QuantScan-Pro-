@@ -83,8 +83,8 @@ export const AdminDashboard: React.FC = () => {
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
           <h2 className="text-2xl font-black italic uppercase tracking-tighter text-white flex items-center gap-2">
             <ShieldCheck size={24} className="text-brand-red" />
@@ -98,7 +98,7 @@ export const AdminDashboard: React.FC = () => {
           <input 
             type="text" 
             placeholder="Buscar usuário..." 
-            className="bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-brand-red/50 w-64 transition-all"
+            className="bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-brand-red/50 w-full md:w-64 transition-all"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -111,7 +111,7 @@ export const AdminDashboard: React.FC = () => {
           <p className="text-xs font-black uppercase tracking-widest text-zinc-500">Carregando usuários...</p>
         </div>
       ) : (
-        <div className="glass-card !p-0 overflow-hidden overflow-x-auto">
+        <div className="glass-card !p-0 overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[800px]">
             <thead>
               <tr className="bg-white/5 border-b border-white/5 text-[10px] font-black uppercase tracking-widest text-zinc-500">

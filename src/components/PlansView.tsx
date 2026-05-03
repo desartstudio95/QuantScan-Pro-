@@ -234,7 +234,7 @@ export const PlansView: React.FC<PlansViewProps> = ({ isUnauthenticated, onGetSt
       )}
 
       {/* 2. PLANOS */}
-      <section id="planos" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
+      <section id="planos" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-start">
         <PlanCard 
           title="Plano Begin"
           price="500 MZN"
@@ -273,11 +273,29 @@ export const PlansView: React.FC<PlansViewProps> = ({ isUnauthenticated, onGetSt
           buttonText="Ser Elite"
           onClick={handleAction}
           features={[
-            "Análises ilimitadas",
-            "Prioridade total de processamento",
+            "30 análises por dia",
             "Insights institucionais avançados",
+            "Prioridade total de processamento",
             "Estratégias PRO Logic",
             "Suporte VIP via WhatsApp"
+          ]}
+        />
+        <PlanCard 
+          title="Plano Lifetime"
+          price="8.000 MT"
+          description="O acesso definitivo para toda a vida."
+          buttonText="Assinar Vitalício"
+          highlight={true}
+          badge="VIP VITALÍCIO"
+          onClick={handleAction}
+          features={[
+            "Análises ilimitadas",
+            "Insights institucionais avançados",
+            "Acesso vitalício (Sem mensalidade)",
+            "Suporte 1-on-1 (WhatsApp/Telegram)",
+            "Prioridade máxima total",
+            "Early access a novas features",
+            "Cursos exclusivos QuantScan"
           ]}
         />
       </section>
@@ -319,22 +337,24 @@ export const PlansView: React.FC<PlansViewProps> = ({ isUnauthenticated, onGetSt
                 <th className="p-4 border-b border-white/5 text-center">Begin</th>
                 <th className="p-4 border-b border-white/5 text-center text-brand-red">Pro</th>
                 <th className="p-4 border-b border-white/5 text-center">Elite</th>
+                <th className="p-4 border-b border-white/5 text-center">Lifetime</th>
               </tr>
             </thead>
             <tbody className="text-xs font-medium text-zinc-300">
               {[
-                { label: "Nº de Análises", free: "8 / dia", pro: "15 / dia", elite: "Ilimitado" },
-                { label: "Score de Probabilidade", free: "Básico", pro: "Avançado", elite: "Avançado+" },
-                { label: "IA Adaptativa", free: "Não", pro: "Sim", elite: "Sim" },
-                { label: "Histórico de Sinais", free: "Limitado", pro: "Completo", elite: "Completo" },
-                { label: "Suporte", free: "Comunidade", pro: "Prioritário", elite: "VIP Individual" },
-                { label: "Processamento", free: "Normal", pro: "Rápido", elite: "Ultra Prioridade" },
+                { label: "Nº de Análises", free: "8 / dia", pro: "15 / dia", elite: "30 / dia", lifetime: "Ilimitado" },
+                { label: "Score de Probabilidade", free: "Básico", pro: "Avançado", elite: "Avançado+", lifetime: "Avançado+" },
+                { label: "IA Adaptativa", free: "Não", pro: "Sim", elite: "Sim", lifetime: "Sim" },
+                { label: "Histórico de Sinais", free: "Limitado", pro: "Completo", elite: "Completo", lifetime: "Completo" },
+                { label: "Suporte", free: "Comunidade", pro: "Prioritário", elite: "VIP Individual", lifetime: "Premium 1-on-1" },
+                { label: "Processamento", free: "Normal", pro: "Rápido", elite: "Ultra Prioridade", lifetime: "Ultra Prioridade" },
               ].map((row, idx) => (
                 <tr key={idx} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                   <td className="p-4 font-bold text-white">{row.label}</td>
                   <td className="p-4 text-center text-zinc-500">{row.free}</td>
                   <td className="p-4 text-center font-bold text-white">{row.pro}</td>
                   <td className="p-4 text-center text-zinc-300">{row.elite}</td>
+                  <td className="p-4 text-center text-brand-red font-bold">{row.lifetime}</td>
                 </tr>
               ))}
             </tbody>
