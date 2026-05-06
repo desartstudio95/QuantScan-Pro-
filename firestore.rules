@@ -79,7 +79,9 @@ service cloud.firestore {
 
     // --- Signals Collection ---
     match /signals/{signalId} {
-      allow get, list: if isSignedIn() && (resource.data.userId == request.auth.uid || isDbAdmin());
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isDbAdmin());
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isDbAdmin();
       
       function isValidSignal(data) {
         return data.keys().hasAll(['userId', 'pair', 'timeframe', 'decision', 'score', 'timestamp', 'result'])

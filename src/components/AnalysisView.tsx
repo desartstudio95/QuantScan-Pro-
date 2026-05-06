@@ -66,13 +66,14 @@ export const AnalysisView: React.FC<{ userData?: any }> = ({ userData }) => {
     try {
       let downloadUrl = null;
       if (auth.currentUser) {
-        const fileRef = ref(storage, `files/${Date.now()}_${file.name}`);
+        const fileRef = ref(storage, `scans/${auth.currentUser.uid}/${Date.now()}_${file.name}`);
         await uploadBytes(fileRef, file);
         downloadUrl = await getDownloadURL(fileRef);
       }
 
       const base64 = preview.split(',')[1];
       const analysis = await analyzeForexChart(base64, undefined, mode);
+      analysis.score = Math.round(analysis.score);
       setResult(analysis);
       
       if (auth.currentUser) {

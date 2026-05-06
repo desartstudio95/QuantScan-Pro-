@@ -14,5 +14,13 @@ service firebase.storage {
                    && request.resource.contentType.matches('image/.*');
       allow delete: if isSignedIn() && (request.auth.uid == userId || isDbAdmin());
     }
+
+    match /scans/{userId}/{fileName} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isDbAdmin());
+      allow create, update: if isSignedIn() && (request.auth.uid == userId || isDbAdmin())
+                   && request.resource.size < 5 * 1024 * 1024 // 5MB limit
+                   && request.resource.contentType.matches('image/.*');
+      allow delete: if isSignedIn() && (request.auth.uid == userId || isDbAdmin());
+    }
   }
 }

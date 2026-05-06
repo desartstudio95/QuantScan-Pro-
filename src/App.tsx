@@ -16,7 +16,7 @@ import { NotificationManager } from './components/NotificationManager';
 import { TrendingUp, ShieldAlert, Ghost, Mail, Lock, UserPlus, LogIn, Loader2, ArrowLeft, User as UserIcon, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, signOut, sendEmailVerification, sendPasswordResetEmail, User, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from './lib/firebase';
 
 export default function App() {
@@ -68,6 +68,21 @@ export default function App() {
 
           if (userSnap.exists()) {
             data = { ...data, ...userSnap.data() };
+            
+            // Force admin rights for root email
+            if (currentUser.email === "fxbrosinvestments00@gmail.com") {
+              data.isAdmin = true;
+              data.isApproved = true;
+              
+              if (userSnap.data().isAdmin !== true || userSnap.data().isApproved !== true) {
+                try {
+                  await updateDoc(userRef, { isAdmin: true, isApproved: true });
+                } catch (e) {
+                  console.error("Failed to update root admin privileges:", e);
+                }
+              }
+            }
+
             if (!data.isApproved && !data.isAdmin) {
               await signOut(auth);
               setAuthError('Sua conta foi criada. Aguarde aprovação manual do administrador.');
