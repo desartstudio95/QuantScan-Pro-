@@ -276,16 +276,24 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewPl
 
           <div className="glass-card p-8 border-brand-red/10 space-y-4">
             <h3 className="font-black uppercase text-xl">Resultados</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-zinc-400">
+            {testimonials.length > 0 ? (
+              <div className="flex overflow-x-auto snap-x snap-mandatory gap-6 pb-4 scrollbar-none">
                 {testimonials.map((t, i) => (
-                    <div key={i} className="space-y-4">
-                        {t.imageUrls && t.imageUrls.map((url: string, index: number) => (
-                          <img key={index} src={url} alt={`Resultado ${index}`} className="w-full rounded-lg mb-2" referrerPolicy="no-referrer" />
+                  <div key={i} className="space-y-4 shrink-0 snap-center w-[85vw] md:w-[40vw] max-w-sm glass-card p-4">
+                    {t.imageUrls && t.imageUrls.length > 0 && (
+                      <div className="flex overflow-x-auto snap-x snap-mandatory gap-2 pb-2 scrollbar-none">
+                        {t.imageUrls.map((url: string, index: number) => (
+                          <img key={index} src={url} alt={`Resultado ${index}`} className="w-full shrink-0 snap-center rounded-lg object-contain bg-black/20" referrerPolicy="no-referrer" />
                         ))}
-                        <p><em>{t.text}</em> <br/>– **{t.userName.split('@')[0]}**</p>
-                    </div>
+                      </div>
+                    )}
+                    <p className="text-sm text-zinc-300"><em>"{t.text}"</em> <br/><span className="text-brand-red/80 font-bold uppercase mt-2 block">– {t.userName.split('@')[0]}</span></p>
+                  </div>
                 ))}
-            </div>
+              </div>
+            ) : (
+              <p className="text-zinc-500 text-sm">Nenhum resultado postado ainda.</p>
+            )}
           </div>
           <AddTestimonialForm />
         </div>
