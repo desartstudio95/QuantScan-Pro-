@@ -39,6 +39,8 @@ export const NotificationManager: React.FC = () => {
           }
         }
       });
+    }, (error) => {
+      console.error("Notifications fetch error:", error);
     });
 
     return () => unsubscribe();

@@ -20,7 +20,13 @@ service cloud.firestore {
     // IMPORTANT: Avoid using this in rules for the 'users' collection itself to prevent recursion.
     function isDbAdmin() {
       return isSignedIn() && 
-             (isRootAdmin() || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isAdmin', false) == true);
+             (
+               isRootAdmin() || 
+               (
+                 exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+                 get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isAdmin', false) == true
+               )
+             );
     }
 
     function isOwner(userId) {
@@ -89,6 +95,7 @@ service cloud.firestore {
       allow create: if isSignedIn() 
                     && isValidSignal(incoming())
                     // Check approval status (Requires DB read)
+                    && exists(/databases/$(database)/documents/users/$(request.auth.uid))
                     && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isApproved == true;
 
       allow update, delete: if isDbAdmin();

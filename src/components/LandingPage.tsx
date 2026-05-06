@@ -18,6 +18,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewPl
     const q = query(collection(db, 'testimonials'), orderBy('timestamp', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setTestimonials(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+      console.error("Testimonials fetch error:", error);
     });
     return () => unsubscribe();
   }, []);
