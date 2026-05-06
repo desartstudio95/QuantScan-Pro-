@@ -143,7 +143,7 @@ export const PlansView: React.FC<PlansViewProps> = ({ isUnauthenticated, onGetSt
       onGetStarted();
     } else {
       // Handle payment or subscription logic for logged in users
-      window.open('https://wa.me/258840000000?text=Ol%C3%A1%2C%20gostaria%20de%20assinar%20o%20plano%20do%20QuantScan', '_blank');
+      window.open('https://wa.me/258869976193?text=Ol%C3%A1%2C%20gostaria%20de%20assinar%20o%20plano%20do%20QuantScan', '_blank');
     }
   };
 

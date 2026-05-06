@@ -93,5 +93,23 @@ service cloud.firestore {
 
       allow update, delete: if isDbAdmin();
     }
+
+    // --- Testimonials Collection ---
+    match /testimonials/{testimonialId} {
+      allow read: if true;
+
+      function isValidTestimonial(data) {
+        return data.keys().hasAll(['userId', 'userName', 'text', 'timestamp', 'imageUrls'])
+               && (data.userId == request.auth.uid || isDbAdmin())
+               && data.userName is string && data.userName.size() <= 100
+               && data.text is string && data.text.size() <= 500
+               && data.timestamp is int
+               && data.imageUrls is list && data.imageUrls.size() <= 10
+               && (data.imageUrls.size() == 0 || data.imageUrls[0] is string);
+      }
+
+      allow create: if isSignedIn() && isValidTestimonial(incoming());
+      allow update, delete: if isDbAdmin();
+    }
   }
 }

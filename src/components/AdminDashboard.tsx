@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Users, ShieldCheck, Search, Loader2 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { collection, onSnapshot, doc, updateDoc } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { collection, onSnapshot, doc, updateDoc, addDoc } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
+import { ImageUploader } from './ImageUploader';
 
 interface UserProfile {
   uid: string;
@@ -19,6 +20,34 @@ export const AdminDashboard: React.FC = () => {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [testUser, setTestUser] = useState('');
+  const [testText, setTestText] = useState('');
+  const [testImageUrls, setTestImageUrls] = useState<string[]>([]);
+  const [submittingTestimonial, setSubmittingTestimonial] = useState(false);
+
+  const handleCreateTestimonial = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!testUser.trim() || !testText.trim() || !auth.currentUser) return;
+    setSubmittingTestimonial(true);
+    try {
+      await addDoc(collection(db, 'testimonials'), {
+        userId: auth.currentUser.uid,
+        userName: testUser,
+        text: testText,
+        timestamp: Date.now(),
+        imageUrls: testImageUrls
+      });
+      setTestUser('');
+      setTestText('');
+      setTestImageUrls([]);
+      alert('Resultado postado com sucesso!');
+    } catch(err) {
+      console.error(err);
+      alert('Erro ao postar');
+    } finally {
+      setSubmittingTestimonial(false);
+    }
+  };
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'users'), (snapshot) => {
@@ -104,6 +133,36 @@ export const AdminDashboard: React.FC = () => {
           />
         </div>
       </div>
+
+      <form onSubmit={handleCreateTestimonial} className="glass-card p-6 space-y-4">
+        <h3 className="font-black uppercase tracking-widest text-brand-red text-sm">Postar Resultado como Admin</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input
+                type="text"
+                placeholder="Nome do Usuário"
+                className="bg-white/5 border border-white/10 rounded-lg p-3 text-white focus:outline-none focus:ring-1 focus:ring-brand-red"
+                value={testUser}
+                onChange={(e) => setTestUser(e.target.value)}
+            />
+            <div className="space-y-1">
+                <ImageUploader onUpload={setTestImageUrls} />
+                {testImageUrls.length > 0 && <p className="text-xs text-green-500">{testImageUrls.length} imagem(ns) carregada(s)!</p>}
+            </div>
+        </div>
+        <textarea
+            placeholder="Texto do Resultado"
+            className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white focus:outline-none focus:ring-1 focus:ring-brand-red"
+            value={testText}
+            onChange={(e) => setTestText(e.target.value)}
+        />
+        <button 
+            disabled={submittingTestimonial}
+            type="submit" 
+            className="bg-brand-red text-white py-2 px-4 rounded-lg font-bold hover:bg-opacity-90 disabled:opacity-50 w-full"
+        >
+            {submittingTestimonial ? 'Postando...' : 'Postar Resultado'}
+        </button>
+      </form>
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-4">

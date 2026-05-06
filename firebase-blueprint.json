@@ -37,6 +37,22 @@
         "result": { "type": "string" }
       },
       "required": ["userId", "pair", "decision", "timestamp"]
+    },
+    "Testimonial": {
+      "title": "User Testimonial",
+      "description": "Public review left by a user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "text": { "type": "string" },
+        "timestamp": { "type": "integer" },
+        "imageUrls": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["userId", "userName", "text", "timestamp"]
     }
   },
   "firestore": {
@@ -47,6 +63,10 @@
     "signals/{signalId}": {
       "schema": "Signal",
       "description": "Generated signals."
+    },
+    "testimonials/{testimonialId}": {
+      "schema": "Testimonial",
+      "description": "Public user testimonials."
     }
   }
 }

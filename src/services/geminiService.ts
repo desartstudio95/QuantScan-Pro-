@@ -4,7 +4,7 @@ import { AnalysisResponse, SignalType } from "../types";
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
 export const analyzeForexChart = async (imageBase64: string, userNotes?: string, preferredMode?: 'Técnico' | 'Fundamental' | 'Híbrido'): Promise<AnalysisResponse> => {
-  const model = "gemini-3-flash-preview";
+  const model = "gemini-3.1-pro-preview";
   
   const systemInstruction = `
     Você é o QuantScan IA, um sistema avançado de análise de mercado financeiro com inteligência institucional.

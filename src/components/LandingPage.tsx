@@ -1,7 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { TrendingUp, ShieldCheck, Zap, BarChart3, Globe, ChevronRight, CheckCircle2 } from 'lucide-react';
+import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import { MarketTicker } from './MarketTicker';
+import { AddTestimonialForm } from './AddTestimonialForm';
 
 interface LandingPageProps {
   onGetStarted: () => void;
@@ -9,6 +12,16 @@ interface LandingPageProps {
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewPlans }) => {
+  const [testimonials, setTestimonials] = useState<any[]>([]);
+
+  useEffect(() => {
+    const q = query(collection(db, 'testimonials'), orderBy('timestamp', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setTestimonials(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    return () => unsubscribe();
+  }, []);
+
   return (
     <div className="min-h-screen bg-brand-dark text-white overflow-x-hidden">
       {/* Navbar */}
@@ -260,12 +273,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewPl
           </div>
 
           <div className="glass-card p-8 border-brand-red/10 space-y-4">
-            <h3 className="font-black uppercase text-xl">Testemunhos</h3>
+            <h3 className="font-black uppercase text-xl">Resultados</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-zinc-400">
-                <p><em>"Desde que comecei a usar o IA QuantScanner, minhas entradas ficaram muito mais precisas. Reduzi minhas perdas e aumentei meus lucros em poucas semanas."</em> <br/>– **Carlos M.**</p>
-                <p><em>"A velocidade com que o sistema identifica oportunidades é impressionante. É como ter um analista profissional trabalhando para mim 24h."</em> <br/>– **João D.**</p>
+                {testimonials.map((t, i) => (
+                    <div key={i} className="space-y-4">
+                        {t.imageUrls && t.imageUrls.map((url: string, index: number) => (
+                          <img key={index} src={url} alt={`Resultado ${index}`} className="w-full rounded-lg mb-2" referrerPolicy="no-referrer" />
+                        ))}
+                        <p><em>{t.text}</em> <br/>– **{t.userName.split('@')[0]}**</p>
+                    </div>
+                ))}
             </div>
           </div>
+          <AddTestimonialForm />
         </div>
       </section>
 
