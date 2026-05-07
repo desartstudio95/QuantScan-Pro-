@@ -93,7 +93,11 @@ export const AnalysisView: React.FC<{ userData?: any }> = ({ userData }) => {
 
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Falha ao analisar imagem. Verifique se o gráfico está claro.');
+      let errorMessage = err.message || 'Falha ao analisar imagem. Verifique se o gráfico está claro.';
+      if (errorMessage.includes('429') || errorMessage.includes('RESOURCE_EXHAUSTED') || errorMessage.includes('prepayment credits')) {
+        errorMessage = 'Sua cota de uso da API do Google Gemini (IA) foi excedida ou os créditos acabaram. Por favor, acesse o painel do Google AI Studio (https://ai.studio) para verificar seu faturamento e recarregar os créditos.';
+      }
+      setError(errorMessage);
     } finally {
       setIsAnalyzing(false);
     }

@@ -3,7 +3,8 @@ import { Signal, SignalResult, SignalType } from '../types';
 import { motion } from 'motion/react';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  BarChart, Bar, Cell
+  BarChart, Bar, Cell,
+  LineChart, Line, Legend
 } from 'recharts';
 import { TrendingUp, Award, Target, Activity } from 'lucide-react';
 import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
@@ -12,6 +13,7 @@ import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 export const DashboardStats: React.FC = () => {
   const [signals, setSignals] = useState<Signal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedPair, setSelectedPair] = useState<string>('');
 
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -36,11 +38,37 @@ export const DashboardStats: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (!selectedPair && signals.length > 0) {
+       const pairs = Array.from(new Set(signals.filter(s => s.pair).map(s => s.pair)));
+       if (pairs.length > 0) {
+         setSelectedPair(pairs[0]);
+       }
+    }
+  }, [signals, selectedPair]);
+
   const totalSignals = signals.length;
-  // const gains = signals.filter(s => s.result === SignalResult.GAIN).length;
-  // const winRate = totalSignals > 0 ? (gains / totalSignals) * 100 : 0;
-  // User requested 90% precision
+  const gains = signals.filter(s => s.result === SignalResult.GAIN).length;
+  const losses = signals.filter(s => s.result === SignalResult.LOSS).length;
+  const completedSignals = gains + losses;
   
+  const winRate = completedSignals > 0 ? (gains / completedSignals) * 100 : 0;
+  const profitLossRatio = losses > 0 ? (gains / losses).toFixed(2) : (gains > 0 ? '∞' : '0');
+
+  const pairStats = signals.reduce((acc: any[], signal) => {
+    const existing = acc.find(i => i.name === signal.pair);
+    if (existing) {
+      existing.total += 1;
+      if (signal.result === SignalResult.GAIN) existing.gains += 1;
+    } else {
+      acc.push({ name: signal.pair, total: 1, gains: signal.result === SignalResult.GAIN ? 1 : 0 });
+    }
+    return acc;
+  }, []).map(p => ({ ...p, winRate: Math.round((p.gains / p.total) * 100) }));
+
+  const bestAssetEntry = [...pairStats].sort((a,b) => b.winRate - a.winRate)[0];
+  const bestAsset = bestAssetEntry ? `${bestAssetEntry.name} (${bestAssetEntry.winRate}%)` : 'N/A';
+
   const chartData = signals
     .sort((a, b) => a.timestamp - b.timestamp)
     .reduce((acc: any[], signal, index) => {
@@ -57,22 +85,27 @@ export const DashboardStats: React.FC = () => {
     const existing = acc.find(i => i.name === signal.timeframe);
     if (existing) {
       existing.count += 1;
-    } else {
-      acc.push({ name: signal.timeframe, count: 1 });
-    }
-    return acc;
-  }, []);
-
-  const pairStats = signals.reduce((acc: any[], signal) => {
-    const existing = acc.find(i => i.name === signal.pair);
-    if (existing) {
-      existing.total += 1;
       if (signal.result === SignalResult.GAIN) existing.gains += 1;
     } else {
-      acc.push({ name: signal.pair, total: 1, gains: signal.result === SignalResult.GAIN ? 1 : 0 });
+      acc.push({ name: signal.timeframe, count: 1, gains: signal.result === SignalResult.GAIN ? 1 : 0 });
     }
     return acc;
-  }, []).map(p => ({ ...p, winRate: Math.round((p.gains / p.total) * 100) }));
+  }, []).map((t: any) => ({ ...t, winRate: Math.round((t.gains / t.count) * 100) }));
+
+  const bestTimeframeEntry = [...timeframeStats].sort((a,b) => b.winRate - a.winRate)[0];
+  const bestTimeframe = bestTimeframeEntry ? `${bestTimeframeEntry.name} (${bestTimeframeEntry.winRate}%)` : 'N/A';
+
+  const priceHistoryData = signals
+    .filter(s => s.type !== SignalType.WAIT && parseFloat(s.entry) && parseFloat(s.takeProfit) && parseFloat(s.stopLoss) && s.pair === selectedPair)
+    .sort((a, b) => a.timestamp - b.timestamp)
+    .map(s => ({
+      name: new Date(s.timestamp).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+      entry: parseFloat(s.entry.replace(/[^0-9.-]/g, '')),
+      stopLoss: parseFloat(s.stopLoss.replace(/[^0-9.-]/g, '')),
+      takeProfit: parseFloat(s.takeProfit.replace(/[^0-9.-]/g, '')),
+    }));
+    
+  const availablePairs = Array.from(new Set(signals.filter(s => s.pair).map(s => s.pair)));
 
   if (loading) return null;
 
@@ -96,9 +129,9 @@ export const DashboardStats: React.FC = () => {
       >
         {[
           { label: 'Total Sinais', value: totalSignals, icon: Activity },
-          { label: 'Taxa de Acerto', value: `90.0%`, icon: Award },
-          { label: 'Melhor Ativo', value: [...pairStats].sort((a,b) => b.winRate - a.winRate)[0]?.name || 'N/A', icon: Target },
-          { label: 'IA Learning', value: '+14%', icon: TrendingUp, positive: true },
+          { label: 'Taxa de Acerto', value: `${winRate.toFixed(1)}%`, icon: Award },
+          { label: 'Ratio Win/Loss', value: profitLossRatio, icon: Target },
+          { label: 'Melhor Ativo', value: bestAsset, icon: TrendingUp, positive: true },
         ].map((stat, i) => (
           <motion.div 
             key={i} 
@@ -114,6 +147,53 @@ export const DashboardStats: React.FC = () => {
           </motion.div>
         ))}
       </motion.div>
+
+      <div className="glass-card p-5 min-h-[350px] flex flex-col">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 border-b border-white/5 pb-4">
+          <h3 className="font-black italic uppercase tracking-wider text-xs text-zinc-400">Histórico de Preços dos Sinais</h3>
+          {availablePairs.length > 0 && (
+            <select 
+              value={selectedPair} 
+              onChange={(e) => setSelectedPair(e.target.value)}
+              className="bg-black/50 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-brand-red"
+            >
+              {availablePairs.map(p => (
+                 <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          )}
+        </div>
+        <div className="flex-1 w-full">
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={priceHistoryData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
+              <XAxis 
+                dataKey="name" 
+                stroke="#52525b" 
+                fontSize={10} 
+                tickLine={false} 
+                axisLine={false} 
+                minTickGap={20}
+              />
+              <YAxis 
+                stroke="#52525b" 
+                fontSize={10} 
+                tickLine={false} 
+                axisLine={false} 
+                domain={['auto', 'auto']}
+              />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#09090b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', fontSize: '12px' }}
+                itemStyle={{ color: '#fff', fontWeight: 'bold' }}
+              />
+              <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+              <Line type="monotone" dataKey="entry" stroke="#3b82f6" name="Entry" strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="takeProfit" stroke="#22c55e" name="Take Profit" strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="stopLoss" stroke="#ef4444" name="Stop Loss" strokeWidth={2} dot={{ r: 3 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-2 glass-card p-5 min-h-[350px] flex flex-col">
@@ -234,3 +314,4 @@ export const DashboardStats: React.FC = () => {
     </div>
   );
 };
+
