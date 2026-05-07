@@ -4,6 +4,9 @@ import { TrendingUp, ShieldCheck, Zap, BarChart3, Globe, ChevronRight, CheckCirc
 import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { MarketTicker } from './MarketTicker';
+import Autoplay from 'embla-carousel-autoplay';
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "./ui/carousel";
+import { Card, CardContent } from "./ui/card";
 import { AddTestimonialForm } from './AddTestimonialForm';
 
 interface LandingPageProps {
@@ -274,25 +277,49 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewPl
             </div>
           </div>
 
-          <div className="glass-card p-8 border-brand-red/10 space-y-4">
-            <h3 className="font-black uppercase text-xl">Resultados</h3>
+          <div className="p-8 space-y-8 w-full max-w-[100vw] overflow-hidden">
+            <h3 className="font-black uppercase text-2xl text-center">Resultados e Feedback</h3>
             {testimonials.length > 0 ? (
-              <div className="flex overflow-x-auto snap-x snap-mandatory gap-6 pb-4 scrollbar-none">
-                {testimonials.map((t, i) => (
-                  <div key={i} className="space-y-4 shrink-0 snap-center w-[85vw] md:w-[40vw] max-w-sm glass-card p-4">
-                    {t.imageUrls && t.imageUrls.length > 0 && (
-                      <div className="flex overflow-x-auto snap-x snap-mandatory gap-2 pb-2 scrollbar-none">
-                        {t.imageUrls.map((url: string, index: number) => (
-                          <img key={index} src={url} alt={`Resultado ${index}`} className="w-full shrink-0 snap-center rounded-lg object-contain bg-black/20" referrerPolicy="no-referrer" />
-                        ))}
-                      </div>
-                    )}
-                    <p className="text-sm text-zinc-300"><em>"{t.text}"</em> <br/><span className="text-brand-red/80 font-bold uppercase mt-2 block">– {t.userName.split('@')[0]}</span></p>
-                  </div>
-                ))}
+              <div className="flex justify-center w-full px-12 md:px-16">
+                <Carousel 
+                  opts={{ align: "start", loop: true }}
+                  plugins={[Autoplay({ delay: 3000 })]}
+                  className="w-full max-w-5xl"
+                >
+                  <CarouselContent className="-ml-2 md:-ml-4">
+                    {testimonials.map((t, i) => (
+                      <CarouselItem key={i} className="pl-2 md:pl-4 md:basis-1/2 lg:basis-1/3">
+                        <Card className="bg-zinc-900/40 border-brand-red/10 border backdrop-blur-sm h-full rounded-2xl overflow-hidden">
+                          <CardContent className="p-0 flex flex-col h-full relative">
+                            {t.imageUrls && t.imageUrls.length > 0 && (
+                              <div className="w-full h-48 bg-black/60 relative">
+                                <img src={t.imageUrls[0]} alt={`Resultado de ${t.userName}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                {t.imageUrls.length > 1 && (
+                                  <div className="absolute bottom-2 right-2 bg-black/60 px-2 py-0.5 rounded text-xs text-white">
+                                    +{t.imageUrls.length - 1} fotos
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            <div className="p-5 flex-grow flex flex-col justify-between space-y-4">
+                              <p className="text-zinc-300 text-sm italic font-medium leading-relaxed">"{t.text}"</p>
+                              <div className="pt-2 border-t border-white/10">
+                                <span className="text-brand-red font-black uppercase text-xs tracking-wider block">
+                                  {t.userName.split('@')[0]}
+                                </span>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </CarouselItem>
+                    ))}
+                  </CarouselContent>
+                  <CarouselPrevious className="bg-brand-red/20 border-brand-red/50 hover:bg-brand-red text-white -left-4 md:-left-12" />
+                  <CarouselNext className="bg-brand-red/20 border-brand-red/50 hover:bg-brand-red text-white -right-4 md:-right-12" />
+                </Carousel>
               </div>
             ) : (
-              <p className="text-zinc-500 text-sm">Nenhum resultado postado ainda.</p>
+              <p className="text-zinc-500 text-sm text-center">Nenhum resultado postado ainda.</p>
             )}
           </div>
           <AddTestimonialForm />
