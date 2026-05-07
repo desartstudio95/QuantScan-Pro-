@@ -9,7 +9,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage, auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, Timestamp } from 'firebase/firestore';
 
-export const AnalysisView: React.FC<{ userData?: any }> = ({ userData }) => {
+export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void }> = ({ userData, onGoToHistory }) => {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -456,12 +456,23 @@ export const AnalysisView: React.FC<{ userData?: any }> = ({ userData }) => {
             </div>
           </div>
 
-          <button 
-            onClick={reset}
-            className="w-full py-3 text-zinc-600 hover:text-white font-black text-xs uppercase tracking-widest transition-colors"
-          >
-            NOVO SCAN INSTITUCIONAL
-          </button>
+          <div className="flex flex-col gap-2">
+            <button 
+              onClick={reset}
+              className="w-full py-3 text-zinc-600 hover:text-white font-black text-xs uppercase tracking-widest transition-colors"
+            >
+              NOVO SCAN INSTITUCIONAL
+            </button>
+            
+            {onGoToHistory && (
+              <button 
+                onClick={onGoToHistory}
+                className="w-full py-2 text-zinc-500 hover:text-white font-medium text-[10px] uppercase tracking-widest transition-colors"
+              >
+                Ver Histórico de Sinais
+              </button>
+            )}
+          </div>
         </motion.div>
       )}
     </div>

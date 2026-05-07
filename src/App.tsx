@@ -619,7 +619,7 @@ export default function App() {
               exit={{ opacity: 0, x: -15 }}
               transition={{ duration: 0.25, ease: 'easeOut' }}
             >
-              {activeTab === 'scan' && <AnalysisView userData={userData} />}
+              {activeTab === 'scan' && <AnalysisView userData={userData} onGoToHistory={() => setActiveTab('history')} />}
               {activeTab === 'history' && <SignalHistory />}
               {activeTab === 'stats' && <DashboardStats />}
               {activeTab === 'profile' && <ProfileView user={user} userData={userData} onUpdate={setUserData} onDeleted={handleLogout} />}
