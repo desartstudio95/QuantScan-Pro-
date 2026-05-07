@@ -237,6 +237,13 @@ export const AnalysisView: React.FC<{ userData?: any }> = ({ userData }) => {
               
               <div className="flex gap-3">
                 <button 
+                  onClick={reset}
+                  disabled={isAnalyzing}
+                  className="w-1/3 bg-white/5 text-white py-3.5 rounded-xl font-black text-sm hover:bg-white/10 border border-white/10 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 uppercase"
+                >
+                  NOVO SCAN
+                </button>
+                <button 
                   onClick={handleStartAnalysis}
                   disabled={isAnalyzing}
                   className="flex-1 bg-brand-red text-white py-3.5 rounded-xl font-black text-base hover:bg-brand-red/90 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
