@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { motion } from 'motion/react';
 import { Signal, SignalResult, SignalType } from '../types';
 import { cn } from '../lib/utils';
 import { Clock, TrendingUp, TrendingDown, ChevronDown, ChevronUp } from 'lucide-react';
@@ -169,14 +170,20 @@ export const SignalHistory: React.FC = () => {
                     </div>
                     <div className="text-right">
                       <span className="text-[10px] text-zinc-500 font-black uppercase">Resultado</span>
-                      <div className={cn(
-                        "flex items-center justify-end gap-1 font-black italic uppercase text-sm",
-                        signal.result === SignalResult.GAIN ? "text-green-500" : 
-                        signal.result === SignalResult.LOSS ? "text-brand-red" : 
-                        "text-zinc-500"
-                      )}>
+                      <motion.div 
+                        key={signal.result}
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ duration: 0.3, type: 'spring', bounce: 0.4 }}
+                        className={cn(
+                          "flex items-center justify-end gap-1 font-black italic uppercase text-sm",
+                          signal.result === SignalResult.GAIN ? "text-green-500" : 
+                          signal.result === SignalResult.LOSS ? "text-brand-red" : 
+                          "text-zinc-500"
+                        )}
+                      >
                         {signal.result}
-                      </div>
+                      </motion.div>
                     </div>
                   </div>
 

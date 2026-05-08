@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Users, ShieldCheck, Search, Loader2 } from 'lucide-react';
+import { Users, ShieldCheck, Search, Loader2, Settings, ShieldAlert } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { collection, onSnapshot, doc, updateDoc, addDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, addDoc, deleteDoc, query, orderBy, getDoc, setDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { ImageUploader } from './ImageUploader';
 
@@ -25,6 +25,9 @@ export const AdminDashboard: React.FC = () => {
   const [testText, setTestText] = useState('');
   const [testImageUrls, setTestImageUrls] = useState<string[]>([]);
   const [submittingTestimonial, setSubmittingTestimonial] = useState(false);
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [maintenanceMessage, setMaintenanceMessage] = useState('');
+  const [savingSettings, setSavingSettings] = useState(false);
 
   const handleCreateTestimonial = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,11 +73,40 @@ export const AdminDashboard: React.FC = () => {
        console.error("Testimonials fetch error:", error);
     });
 
+    const settingsRef = doc(db, 'settings', 'app');
+    const unsubSettings = onSnapshot(settingsRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setMaintenanceMode(docSnap.data().maintenanceMode || false);
+        setMaintenanceMessage(docSnap.data().maintenanceMessage || '');
+      }
+    }, (error) => {
+      console.warn("Failed to listen to settings:", error);
+    });
+
     return () => {
       unsub();
       unsubTestimonials();
+      unsubSettings();
     };
   }, []);
+
+  const handleSaveSettings = async () => {
+    setSavingSettings(true);
+    try {
+      const settingsRef = doc(db, 'settings', 'app');
+      // Using setDoc with merge to create it if it doesn't exist
+      await setDoc(settingsRef, {
+        maintenanceMode,
+        maintenanceMessage
+      }, { merge: true });
+      alert('Configurações salvas com sucesso!');
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao salvar as configurações.');
+    } finally {
+      setSavingSettings(false);
+    }
+  };
 
   const handleToggleApproval = async (userId: string, currentStatus: boolean) => {
     try {
@@ -154,6 +186,61 @@ export const AdminDashboard: React.FC = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
+      </div>
+
+      <div className="glass-card p-6 space-y-4 border-l-4 border-l-brand-red mb-8">
+        <div className="flex items-center gap-3 mb-4">
+          <Settings className="text-zinc-400" size={20} />
+          <h3 className="font-black uppercase tracking-widest text-zinc-300 text-sm">Configurações do Sistema</h3>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-4 bg-black/20 p-4 rounded-xl border border-white/5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className={maintenanceMode ? "text-brand-red" : "text-zinc-500"} size={18} />
+                <span className="text-sm font-bold text-white uppercase tracking-wider">Modo de Manutenção</span>
+              </div>
+              <button 
+                onClick={() => setMaintenanceMode(!maintenanceMode)}
+                className={cn(
+                  "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+                  maintenanceMode ? "bg-brand-red" : "bg-zinc-700"
+                )}
+              >
+                <span className={cn(
+                  "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                  maintenanceMode ? "translate-x-6" : "translate-x-1"
+                )} />
+              </button>
+            </div>
+            <p className="text-xs text-zinc-500 leading-relaxed">
+              O modo de manutenção bloqueia o acesso ao aplicativo para todos os usuários comuns, exibindo uma tela de aviso. Somente administradores poderão acessar a plataforma.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <label className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">
+              Mensagem de Manutenção (Opcional)
+            </label>
+            <textarea
+              placeholder="Ex: Estamos realizando melhorias..."
+              className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white focus:outline-none focus:ring-1 focus:ring-brand-red text-sm min-h-[80px]"
+              value={maintenanceMessage}
+              onChange={(e) => setMaintenanceMessage(e.target.value)}
+              disabled={!maintenanceMode}
+            />
+          </div>
+        </div>
+
+        <button 
+          onClick={handleSaveSettings}
+          disabled={savingSettings}
+          className="mt-6 w-full md:w-auto px-6 py-2.5 bg-white/10 hover:bg-white/20 text-white text-xs font-black uppercase tracking-widest rounded-lg transition-colors flex items-center justify-center gap-2"
+        >
+          {savingSettings ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
+          Salvar Configurações
+        </button>
       </div>
 
       <form onSubmit={handleCreateTestimonial} className="glass-card p-6 space-y-4">

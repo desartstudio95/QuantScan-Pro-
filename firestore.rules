@@ -58,7 +58,7 @@ service cloud.firestore {
                && data.name is string && data.name.size() <= 100
                && (data.isPremium is bool || data.isPremium == null)
                && (data.isAdmin is bool || data.isAdmin == null)
-               && data.plan in ['basic', 'pro', 'elite']
+               && data.plan in ['basic', 'pro', 'elite', 'lifetime']
                && (data.analysisLimit is int || data.analysisLimit == null)
                && (data.isApproved is bool || data.isApproved == null);
       }
@@ -120,5 +120,11 @@ service cloud.firestore {
       allow create: if isSignedIn() && isValidTestimonial(incoming());
       allow update, delete: if isDbAdmin();
     }
+    // --- Settings Collection ---
+    match /settings/{settingId} {
+      allow read: if true;
+      allow update, create, delete: if isDbAdmin();
+    }
   }
 }
+

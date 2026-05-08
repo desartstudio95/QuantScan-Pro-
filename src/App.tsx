@@ -13,10 +13,11 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { LandingPage } from './components/LandingPage';
 import { ProfileView } from './components/ProfileView';
 import { NotificationManager } from './components/NotificationManager';
+import { MaintenancePage } from './components/MaintenancePage';
 import { TrendingUp, ShieldAlert, Ghost, Mail, Lock, UserPlus, LogIn, Loader2, ArrowLeft, User as UserIcon, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, signOut, sendEmailVerification, sendPasswordResetEmail, User, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from './lib/firebase';
 
 export default function App() {
@@ -24,6 +25,8 @@ export default function App() {
   const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('scan');
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [maintenanceMessage, setMaintenanceMessage] = useState('');
   
       // Auth & View State
   const [isSecretAdminRoute, setIsSecretAdminRoute] = useState(() => window.location.pathname === '/fxbros-admin' || window.location.hash === '#/fxbros-admin');
@@ -44,6 +47,21 @@ export default function App() {
   const [rememberMe, setRememberMe] = useState(true);
 
   const [unauthView, setUnauthView] = useState<'hero' | 'plans'>('hero');
+
+  useEffect(() => {
+    // Listen for settings changes
+    const settingsRef = doc(db, 'settings', 'app');
+    const unsubSettings = onSnapshot(settingsRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setMaintenanceMode(docSnap.data().maintenanceMode || false);
+        setMaintenanceMessage(docSnap.data().maintenanceMessage || '');
+      }
+    }, (error) => {
+      console.warn("Failed to listen to settings:", error);
+    });
+
+    return () => unsubSettings();
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -233,6 +251,11 @@ export default function App() {
         <div className="w-10 h-10 border-4 border-brand-red border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
+  }
+
+  // Se estiver em manutenção e o usuário não for admin, mostra a página de manutenção
+  if (maintenanceMode && !isAdmin) {
+    return <MaintenancePage message={maintenanceMessage} />;
   }
 
   if (!user) {

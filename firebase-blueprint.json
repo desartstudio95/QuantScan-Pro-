@@ -53,6 +53,16 @@
         }
       },
       "required": ["userId", "userName", "text", "timestamp"]
+    },
+    "AppSettings": {
+      "title": "App Settings",
+      "description": "Global application settings.",
+      "type": "object",
+      "properties": {
+        "maintenanceMode": { "type": "boolean" },
+        "maintenanceMessage": { "type": "string" }
+      },
+      "required": ["maintenanceMode"]
     }
   },
   "firestore": {
@@ -67,6 +77,11 @@
     "testimonials/{testimonialId}": {
       "schema": "Testimonial",
       "description": "Public user testimonials."
+    },
+    "settings/{settingId}": {
+      "schema": "AppSettings",
+      "description": "Global application settings."
     }
   }
 }
+
