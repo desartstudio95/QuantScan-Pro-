@@ -306,7 +306,7 @@ export default function App() {
             
             <div className="space-y-0.5">
               <h1 className="text-2xl font-black italic tracking-tighter uppercase leading-none">
-                {isSecretAdminRoute ? <>FXBROS <span className="text-brand-red">ADMIN</span></> : <>QUANT<span className="text-brand-red">SCAN</span></>}
+                {isSecretAdminRoute ? <>FXBROS <span className="text-brand-red">ADMIN</span></> : <><span className="text-white">QUANT</span><span className="text-brand-red">SCAN</span></>}
               </h1>
               <p className="text-zinc-500 font-medium text-[10px] leading-tight">
                 {isSecretAdminRoute ? "Acesso Restrito" : "Acesse a inteligência institucional Pro."}
@@ -626,7 +626,7 @@ export default function App() {
                 />
                 <div className="flex flex-col">
                   <span className="text-[10px] text-zinc-500 tracking-widest uppercase font-bold">Olá Humano, Bem-Vindo</span>
-                  <div className="font-black italic text-xl tracking-tighter uppercase leading-none">QUANT<span className="text-brand-red">SCAN</span></div>
+                  <div className="font-black italic text-xl tracking-tighter uppercase leading-none"><span className="text-white">QUANT</span><span className="text-brand-red">SCAN</span></div>
                 </div>
              </div>
              <button onClick={handleLogout} className="text-zinc-500 hover:text-white p-2">

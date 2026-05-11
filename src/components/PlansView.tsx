@@ -237,7 +237,7 @@ export const PlansView: React.FC<PlansViewProps> = ({ isUnauthenticated, onGetSt
       <section id="planos" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-start">
         <PlanCard 
           title="Plano Begin"
-          price="500 MZN"
+          price="1.700 MT"
           description="Para quem está começando e quer testar a potência."
           buttonText="Assinar Agora"
           onClick={handleAction}
@@ -251,7 +251,7 @@ export const PlansView: React.FC<PlansViewProps> = ({ isUnauthenticated, onGetSt
         />
         <PlanCard 
           title="Plano Pro"
-          price="1.500 MZN"
+          price="3.500 MT"
           description="O plano mais popular para traders consistentes."
           buttonText="Assinar Agora"
           highlight={true}
@@ -268,7 +268,7 @@ export const PlansView: React.FC<PlansViewProps> = ({ isUnauthenticated, onGetSt
         />
         <PlanCard 
           title="Plano Elite"
-          price="3.000 MZN"
+          price="5.700 MT"
           description="Acesso total às ferramentas institucionais."
           buttonText="Ser Elite"
           onClick={handleAction}
@@ -282,7 +282,7 @@ export const PlansView: React.FC<PlansViewProps> = ({ isUnauthenticated, onGetSt
         />
         <PlanCard 
           title="Plano Lifetime"
-          price="8.000 MT"
+          price="10.000 MT"
           description="O acesso definitivo para toda a vida."
           buttonText="Assinar Vitalício"
           highlight={true}

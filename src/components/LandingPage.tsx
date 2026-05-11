@@ -40,7 +40,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewPl
               referrerPolicy="no-referrer"
             />
             <span className="font-black italic text-2xl tracking-tighter uppercase">
-              QUANT<span className="text-brand-red">SCAN</span>
+              <span className="text-white">QUANT</span><span className="text-brand-red">SCAN</span>
             </span>
           </div>
 
@@ -334,7 +334,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewPl
               <TrendingUp size={18} className="text-white" />
             </div>
             <span className="font-black italic text-xl tracking-tighter uppercase">
-              QUANT<span className="text-brand-red">SCAN</span>
+              <span className="text-white">QUANT</span><span className="text-brand-red">SCAN</span>
             </span>
           </div>
           <p className="text-zinc-600 text-xs max-w-lg mx-auto">

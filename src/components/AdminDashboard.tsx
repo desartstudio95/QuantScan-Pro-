@@ -12,8 +12,10 @@ interface UserProfile {
   isPremium: boolean;
   isAdmin: boolean;
   analysisLimit?: number;
-  plan?: 'basic' | 'pro' | 'elite';
+  plan?: 'basic' | 'pro' | 'elite' | 'lifetime';
   isApproved?: boolean;
+  subscriptionStartsAt?: number;
+  subscriptionEndsAt?: number | null;
 }
 
 export const AdminDashboard: React.FC = () => {
@@ -108,12 +110,20 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleToggleApproval = async (userId: string, currentStatus: boolean) => {
+  const handleToggleApproval = async (user: any) => {
     try {
-      await updateDoc(doc(db, 'users', userId), {
-        isApproved: !currentStatus
-      }).catch(err => {
-        handleFirestoreError(err, OperationType.UPDATE, 'users/' + userId);
+      const updates: any = { isApproved: !user.isApproved };
+      
+      // Se estiver aprovando pela primeira vez (ou não tem data), define o início e fim
+      if (!user.isApproved && !user.subscriptionStartsAt) {
+        updates.subscriptionStartsAt = Date.now();
+        if (user.plan !== 'lifetime') {
+          updates.subscriptionEndsAt = Date.now() + 30 * 24 * 60 * 60 * 1000; // 30 dias
+        }
+      }
+
+      await updateDoc(doc(db, 'users', user.uid), updates).catch(err => {
+        handleFirestoreError(err, OperationType.UPDATE, 'users/' + user.uid);
         throw err;
       });
     } catch (err) {
@@ -122,30 +132,62 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handlePlanChange = async (userId: string, newPlan: 'basic' | 'pro' | 'elite') => {
+  const handlePlanChange = async (user: any, newPlan: 'basic' | 'pro' | 'elite' | 'lifetime') => {
     let limit = 8;
     let isPremium = false;
 
     if (newPlan === 'pro') {
       limit = 15;
       isPremium = true;
-    } else if (newPlan === 'elite') {
+    } else if (newPlan === 'elite' || newPlan === 'lifetime') {
       limit = 999999; // Represents unlimited
       isPremium = true;
     }
 
+    const updates: any = {
+      plan: newPlan,
+      analysisLimit: limit,
+      isPremium
+    };
+
+    // Atualiza a validade se mudar o plano
+    if (newPlan === 'lifetime') {
+      updates.subscriptionEndsAt = null; // Lifetime não expira
+    } else {
+      // Se não tinha data de fim e já estava aprovado, define 30 dias a partir de agora
+      if (user.isApproved && !user.subscriptionEndsAt) {
+        updates.subscriptionEndsAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
+      }
+    }
+
     try {
-      await updateDoc(doc(db, 'users', userId), {
-        plan: newPlan,
-        analysisLimit: limit,
-        isPremium
-      }).catch(err => {
-        handleFirestoreError(err, OperationType.UPDATE, 'users/' + userId);
+      await updateDoc(doc(db, 'users', user.uid), updates).catch(err => {
+        handleFirestoreError(err, OperationType.UPDATE, 'users/' + user.uid);
         throw err;
       });
     } catch (err) {
       console.error("Failed to update user plan", err);
       alert('Falha ao atualizar plano do usuário.');
+    }
+  };
+
+  const handleRenewSubscription = async (user: any) => {
+    try {
+      const now = Date.now();
+      const currentEnd = user.subscriptionEndsAt || now;
+      // Retoma do momento atual se já expirou, ou adiciona ao fim atual se ainda está ativo
+      const newEnd = (currentEnd > now ? currentEnd : now) + 30 * 24 * 60 * 60 * 1000;
+      
+      await updateDoc(doc(db, 'users', user.uid), {
+        subscriptionEndsAt: newEnd
+      }).catch(err => {
+        handleFirestoreError(err, OperationType.UPDATE, 'users/' + user.uid);
+        throw err;
+      });
+      alert('Assinatura renovada com sucesso por 30 dias!');
+    } catch (err) {
+      console.error("Failed to renew user", err);
+      alert('Falha ao renovar assinatura.');
     }
   };
 
@@ -309,6 +351,8 @@ export const AdminDashboard: React.FC = () => {
                 <th className="p-4 text-center">Aprovação</th>
                 <th className="p-4 text-center">Plano</th>
                 <th className="p-4 text-center">Limite Diário</th>
+                <th className="p-4 text-center">Assinatura</th>
+                <th className="p-4 text-center">Ações</th>
                 <th className="p-4 text-center">Admin</th>
               </tr>
             </thead>
@@ -332,7 +376,7 @@ export const AdminDashboard: React.FC = () => {
                   </td>
                   <td className="p-4 text-center">
                     <button 
-                      onClick={() => handleToggleApproval(user.uid, !!user.isApproved)}
+                      onClick={() => handleToggleApproval(user)}
                       className={cn(
                         "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-all",
                         user.isApproved 
@@ -346,18 +390,46 @@ export const AdminDashboard: React.FC = () => {
                   <td className="p-4 text-center">
                     <select 
                       value={user.plan || 'basic'}
-                      onChange={(e) => handlePlanChange(user.uid, e.target.value as 'basic' | 'pro' | 'elite')}
+                      onChange={(e) => handlePlanChange(user, e.target.value as 'basic' | 'pro' | 'elite' | 'lifetime')}
                       className="bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white uppercase font-black tracking-widest focus:outline-none focus:border-brand-red/50 cursor-pointer"
                     >
                       <option value="basic">Básico</option>
                       <option value="pro">Premium (Pro)</option>
                       <option value="elite">Elite</option>
+                      <option value="lifetime">Lifetime</option>
                     </select>
                   </td>
                   <td className="p-4 text-center">
                     <span className="text-sm font-mono font-bold text-white">
                       {user.analysisLimit === 999999 ? 'Ilimitado' : user.analysisLimit ?? 8}
                     </span>
+                  </td>
+                  <td className="p-4 text-center">
+                    {user.plan === 'lifetime' ? (
+                      <span className="text-[10px] font-black text-brand-red uppercase tracking-widest">Vitalício</span>
+                    ) : user.subscriptionEndsAt ? (
+                      <div className="flex flex-col items-center justify-center">
+                        <span className={cn(
+                          "text-[10px] font-bold font-mono",
+                          user.subscriptionEndsAt < Date.now() ? "text-brand-red" : 
+                          user.subscriptionEndsAt < Date.now() + 3*24*60*60*1000 ? "text-orange-500" : "text-zinc-400"
+                        )}>
+                          {user.subscriptionEndsAt < Date.now() ? "Expirado" : "Vence"}: {new Date(user.subscriptionEndsAt).toLocaleDateString('pt-BR')}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-zinc-600 font-bold">-</span>
+                    )}
+                  </td>
+                  <td className="p-4 text-center">
+                    {user.plan !== 'lifetime' && user.isApproved && (
+                      <button
+                        onClick={() => handleRenewSubscription(user)}
+                        className="px-3 py-1 bg-white/10 hover:bg-brand-red/20 text-white hover:text-brand-red border border-white/10 hover:border-brand-red/30 rounded text-[10px] font-black uppercase tracking-widest transition-all"
+                      >
+                        Renovar
+                      </button>
+                    )}
                   </td>
                   <td className="p-4 text-center">
                     {user.isAdmin && (

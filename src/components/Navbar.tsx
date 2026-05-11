@@ -37,7 +37,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, isAdmin
         />
         <div className="flex flex-col">
           <span className="font-black italic text-xl tracking-tighter uppercase leading-none">
-            QUANT<span className="text-brand-red">SCAN</span>
+            <span className="text-white">QUANT</span><span className="text-brand-red">SCAN</span>
           </span>
           <span className="text-[10px] font-black uppercase text-zinc-500 tracking-[0.3em] mt-1">IA TRADER</span>
         </div>

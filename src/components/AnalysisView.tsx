@@ -18,6 +18,13 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
   const [mode, setMode] = useState<'Técnico' | 'Fundamental' | 'Híbrido'>('Híbrido');
   const [usageInfo, setUsageInfo] = useState<{ used: number, limit: number }>({ used: 0, limit: userData?.analysisLimit ?? 8 });
 
+  const now = Date.now();
+  const isLifetime = userData?.plan === 'lifetime';
+  const endsAt = userData?.subscriptionEndsAt;
+  const isExpired = !!(!isLifetime && endsAt && now > endsAt);
+  const daysRemaining = !isLifetime && endsAt ? (endsAt - now) / (1000 * 60 * 60 * 24) : null;
+  const isEndingSoon = daysRemaining !== null && Math.ceil(daysRemaining) <= 3 && Math.ceil(daysRemaining) > 0;
+
   useEffect(() => {
     const fetchUsage = async () => {
       if (!auth.currentUser) return;
@@ -54,6 +61,10 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
   }, [result, userData]);
 
   const handleStartAnalysis = async () => {
+    if (isExpired) {
+      setError("Sua assinatura expirou. Por favor, contate o administrador para renovar o plano.");
+      return;
+    }
     if (!preview || !file) return;
     if (usageInfo.used >= usageInfo.limit) {
       setError(`Limite diário atingido (${usageInfo.used}/${usageInfo.limit}). Faça upgrade para análises ilimitadas.`);
@@ -129,6 +140,30 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
 
   return (
     <div className="max-w-4xl mx-auto space-y-5">
+      {isExpired && (
+        <div className="bg-brand-red/10 border border-brand-red p-4 rounded-xl flex items-start gap-3">
+          <AlertTriangle className="text-brand-red shrink-0 mt-0.5" size={20} />
+          <div>
+            <h3 className="text-brand-red font-black text-sm uppercase tracking-widest">Assinatura Expirada</h3>
+            <p className="text-red-200/70 text-xs mt-1">
+              Sua assinatura expirou. Renove seu plano para continuar usando o scanner analisador.
+            </p>
+          </div>
+        </div>
+      )}
+      
+      {isEndingSoon && (
+        <div className="bg-orange-500/10 border border-orange-500 p-4 rounded-xl flex items-start gap-3">
+          <AlertTriangle className="text-orange-500 shrink-0 mt-0.5" size={20} />
+          <div>
+            <h3 className="text-orange-500 font-black text-sm uppercase tracking-widest">Assinatura Expirando</h3>
+            <p className="text-orange-200/70 text-xs mt-1">
+              Sua assinatura expira em {Math.ceil(daysRemaining)} dia(s). Renove agora para não perder o acesso ao scanner.
+            </p>
+          </div>
+        </div>
+      )}
+
       <header className="space-y-1">
         <h1 className="text-xl font-black italic tracking-tighter text-white flex items-center gap-2.5 uppercase">
           <div className="w-7 h-7 rounded-lg border-2 border-brand-red flex items-center justify-center red-glow">
@@ -193,10 +228,11 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
                 {...getRootProps()} 
                 className={cn(
                   "w-full flex flex-col items-center justify-center py-10 rounded-xl cursor-pointer transition-all duration-300 border border-transparent",
-                  isDragActive ? "bg-brand-red/5 scale-[0.98] border-brand-red/30" : "hover:bg-zinc-800/20"
+                  isDragActive ? "bg-brand-red/5 scale-[0.98] border-brand-red/30" : "hover:bg-zinc-800/20",
+                  isExpired ? "opacity-50 pointer-events-none" : ""
                 )}
               >
-                <input {...getInputProps()} />
+                <input {...getInputProps()} disabled={isExpired} />
                 <div className="w-16 h-16 bg-brand-gray rounded-xl flex items-center justify-center mb-4 border border-white/5 group-hover:border-brand-red/30 transition-colors">
                   <Upload size={24} className="text-zinc-600 group-hover:scale-110 transition-transform" />
                 </div>
@@ -205,10 +241,13 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
               </div>
 
               <div className="flex gap-3 w-full">
-                <label className="flex-1 bg-brand-dark border-2 border-white/5 text-white py-3.5 rounded-xl font-black text-xs hover:border-brand-red/50 transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer relative overflow-hidden group">
+                <label className={cn(
+                  "flex-1 bg-brand-dark border-2 border-white/5 text-white py-3.5 rounded-xl font-black text-xs hover:border-brand-red/50 transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer relative overflow-hidden group",
+                  isExpired ? "opacity-50 pointer-events-none" : ""
+                )}>
                   <Camera size={16} className="text-zinc-400 group-hover:text-brand-red transition-colors" />
                   <span className="whitespace-nowrap pt-0.5">TIRAR FOTO</span>
-                  <input type="file" accept="image/*" capture="environment" className="opacity-0 absolute inset-0 cursor-pointer w-full h-full" onChange={(e) => {
+                  <input type="file" accept="image/*" capture="environment" disabled={isExpired} className="opacity-0 absolute inset-0 cursor-pointer w-full h-full" onChange={(e) => {
                     const f = e.target.files?.[0];
                     if (f) onDrop([f]);
                   }} />
