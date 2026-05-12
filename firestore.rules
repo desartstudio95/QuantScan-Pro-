@@ -86,8 +86,8 @@ service cloud.firestore {
       function isValidSignal(data) {
         return data.keys().hasAll(['userId', 'pair', 'timeframe', 'decision', 'score', 'timestamp', 'result'])
                && data.userId == request.auth.uid
-               && data.pair is string && data.pair.size() <= 20
-               && data.timeframe is string && data.timeframe.size() <= 10
+               && data.pair is string && data.pair.size() <= 100
+               && data.timeframe is string && data.timeframe.size() <= 50
                && data.decision is string
                && data.score is int && data.score >= 0 && data.score <= 100
                && data.timestamp is int

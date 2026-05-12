@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage, auth } from '../lib/firebase';
+import { compressImage, cleanupStorage } from '../lib/imageUtils';
 
 interface ImageUploaderProps {
   onUpload: (urls: string[]) => void;
@@ -18,11 +19,16 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onUpload, classNam
 
     try {
       const uploadPromises = files.map(async (file) => {
-        const storageRef = ref(storage, `testimonials/${auth.currentUser!.uid}/${Date.now()}_${file.name}`);
-        await uploadBytes(storageRef, file);
+        const compressedFile = await compressImage(file, 1200, 0.7);
+        const storageRef = ref(storage, `testimonials/${auth.currentUser!.uid}/${Date.now()}_${compressedFile.name}`);
+        await uploadBytes(storageRef, compressedFile);
         return getDownloadURL(storageRef);
       });
       const urls = await Promise.all(uploadPromises);
+      
+      // Limpar imagens antigas de depoimentos do usuário (máximo de 100)
+      cleanupStorage(`testimonials/${auth.currentUser!.uid}`, 100);
+
       onUpload(urls);
     } catch (error) {
       console.error(error);

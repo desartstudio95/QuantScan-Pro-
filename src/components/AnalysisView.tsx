@@ -1,11 +1,12 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, X, ShieldCheck, Target, TrendingUp, AlertTriangle, Loader2, Zap, BrainCircuit, Camera, ScanLine } from 'lucide-react';
+import { Upload, X, ShieldCheck, Target, TrendingUp, AlertTriangle, Loader2, Zap, BrainCircuit, Camera, ScanLine, Bell, BellRing } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { analyzeForexChart } from '../services/geminiService';
 import { AnalysisResponse, SignalResult, SignalType } from '../types';
 import { cn } from '../lib/utils';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { compressImage, cleanupStorage } from '../lib/imageUtils';
 import { storage, auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, Timestamp } from 'firebase/firestore';
 
@@ -17,6 +18,8 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<'Técnico' | 'Fundamental' | 'Híbrido'>('Híbrido');
   const [usageInfo, setUsageInfo] = useState<{ used: number, limit: number }>({ used: 0, limit: userData?.analysisLimit ?? 8 });
+  const [alerts, setAlerts] = useState<{type: string, price: string, targetValue: number}[]>([]);
+  const [mockPrice, setMockPrice] = useState<number | null>(null);
 
   const now = Date.now();
   const isLifetime = userData?.plan === 'lifetime';
@@ -24,6 +27,68 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
   const isExpired = !!(!isLifetime && endsAt && now > endsAt);
   const daysRemaining = !isLifetime && endsAt ? (endsAt - now) / (1000 * 60 * 60 * 24) : null;
   const isEndingSoon = daysRemaining !== null && Math.ceil(daysRemaining) <= 3 && Math.ceil(daysRemaining) > 0;
+
+  useEffect(() => {
+    if (result && result.entry) {
+      const entryNum = parseFloat(result.entry.replace(/[^0-9.]/g, ''));
+      if (!isNaN(entryNum)) setMockPrice(entryNum);
+      if ('Notification' in window && Notification.permission !== 'granted') {
+        Notification.requestPermission();
+      }
+    } else {
+      setMockPrice(null);
+      setAlerts([]);
+    }
+  }, [result]);
+
+  useEffect(() => {
+    if (mockPrice === null || alerts.length === 0 || !result) return;
+    
+    const interval = setInterval(() => {
+      setMockPrice(prevPrice => {
+        if (prevPrice === null) return null;
+        // Simulando variação realista (0.01% - 0.05%)
+        const movePercent = (Math.random() - 0.5) * 0.001; 
+        let nextPrice = prevPrice * (1 + movePercent);
+        
+        // Vamos forçar o preço a ir em direção a um dos alertas para que a feature possa ser testada
+        if (Math.random() > 0.4 && alerts.length > 0) {
+           const target = alerts[Math.floor(Math.random() * alerts.length)].targetValue;
+           if (target > nextPrice) {
+               nextPrice += target * 0.0002;
+           } else {
+               nextPrice -= target * 0.0002;
+           }
+        }
+
+        let triggeredIndex = -1;
+        const triggeredAlert = alerts.find((alert, index) => {
+          const isTriggered = Math.abs(nextPrice - alert.targetValue) < (alert.targetValue * 0.0002) || 
+            (prevPrice < alert.targetValue && nextPrice >= alert.targetValue) ||
+            (prevPrice > alert.targetValue && nextPrice <= alert.targetValue);
+          if (isTriggered) triggeredIndex = index;
+          return isTriggered;
+        });
+
+        if (triggeredAlert && triggeredIndex !== -1) {
+          if ('Notification' in window && Notification.permission === 'granted') {
+             new Notification('🚨 Alerta QuantScan', {
+               body: `O preço do ativo ${result.pair} atingiu seu alvo de ${triggeredAlert.type} (${triggeredAlert.price}).`,
+               icon: 'https://i.ibb.co/9BwbV3M/FXBROS-WORLD-3.png'
+             });
+          } else {
+             window.alert(`🚨 Alerta QuantScan: O preço do ativo ${result.pair} atingiu seu alvo de ${triggeredAlert.type} (${triggeredAlert.price}).`);
+          }
+          
+          setAlerts(prev => prev.filter((_, i) => i !== triggeredIndex));
+        }
+
+        return nextPrice;
+      });
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [alerts, mockPrice, result]);
 
   useEffect(() => {
     const fetchUsage = async () => {
@@ -80,6 +145,9 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
         const fileRef = ref(storage, `scans/${auth.currentUser.uid}/${Date.now()}_${file.name}`);
         await uploadBytes(fileRef, file);
         downloadUrl = await getDownloadURL(fileRef);
+        
+        // Clean up old scans for this user to avoid storage limits (keep max 100)
+        cleanupStorage(`scans/${auth.currentUser.uid}`, 100);
       }
 
       const base64 = preview.split(',')[1];
@@ -103,10 +171,12 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
       }
 
     } catch (err: any) {
-      console.error(err);
+      console.error("Gemini Error:", err);
       let errorMessage = err.message || 'Falha ao analisar imagem. Verifique se o gráfico está claro.';
       if (errorMessage.includes('429') || errorMessage.includes('RESOURCE_EXHAUSTED') || errorMessage.includes('prepayment credits')) {
         errorMessage = 'Sua cota de uso da API do Google Gemini (IA) foi excedida ou os créditos acabaram. Por favor, acesse o painel do Google AI Studio (https://ai.studio) para verificar seu faturamento e recarregar os créditos.';
+      } else {
+        errorMessage = `Erro na API: ${errorMessage}`;
       }
       setError(errorMessage);
     } finally {
@@ -114,14 +184,18 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
     }
   };
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
     const selectedFile = acceptedFiles[0];
-    setFile(selectedFile);
+    
+    // Comprimir a imagem antes de setar state para reduzir MS
+    const compressedFile = await compressImage(selectedFile, 1200, 0.7);
+    
+    setFile(compressedFile);
     const reader = new FileReader();
     reader.onload = () => {
       setPreview(reader.result as string);
     };
-    reader.readAsDataURL(selectedFile);
+    reader.readAsDataURL(compressedFile);
     setError(null);
   }, []);
 
@@ -136,6 +210,22 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
     setPreview(null);
     setResult(null);
     setError(null);
+    setMockPrice(null);
+    setAlerts([]);
+  };
+
+  const toggleAlert = (type: string, priceStr: string) => {
+    const numPrice = parseFloat(priceStr.replace(/[^0-9.]/g, ''));
+    if (isNaN(numPrice)) return;
+
+    setAlerts(prev => {
+      const exists = prev.some(a => a.type === type);
+      if (exists) {
+        return prev.filter(a => a.type !== type);
+      } else {
+        return [...prev, { type, price: priceStr, targetValue: numPrice }];
+      }
+    });
   };
 
   return (
@@ -389,27 +479,67 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
                 <span className="text-[8px] uppercase font-black tracking-widest opacity-60">Decisão QuantScan</span>
               </div>
 
+              {mockPrice !== null && (
+                <div className="flex flex-col items-center justify-center p-2 mb-2 bg-black/40 rounded border border-white/5">
+                  <span className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold">Preço de Mercado (Simulado)</span>
+                  <span className="font-mono text-lg font-black text-white">{mockPrice.toFixed(5)}</span>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <div className="flex items-center justify-between p-3 glass-card bg-transparent border-white/5">
                   <div className="flex items-center gap-2">
                     <Target size={14} className="text-zinc-600" />
                     <span className="text-[9px] font-black text-zinc-500 uppercase">ENTRADA</span>
                   </div>
-                  <span className="font-mono font-black text-sm">{result.entry}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-black text-sm">{result.entry}</span>
+                    <button 
+                      onClick={() => toggleAlert('Entrada', result.entry)}
+                      className={cn(
+                        "p-1.5 rounded transition-colors", 
+                        alerts.some(a => a.type === 'Entrada') ? "text-yellow-500 bg-yellow-500/20" : "text-zinc-500 hover:text-yellow-500 hover:bg-white/5"
+                      )}
+                    >
+                      {alerts.some(a => a.type === 'Entrada') ? <BellRing size={14} /> : <Bell size={14} />}
+                    </button>
+                  </div>
                 </div>
                 <div className="flex items-center justify-between p-3 glass-card bg-transparent border-white/5">
                   <div className="flex items-center gap-2">
                     <AlertTriangle size={14} className="text-brand-red/50" />
                     <span className="text-[9px] font-black text-zinc-500 uppercase">STOP LOSS</span>
                   </div>
-                  <span className="font-mono font-black text-sm text-brand-red">{result.stopLoss}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-black text-sm text-brand-red">{result.stopLoss}</span>
+                    <button 
+                      onClick={() => toggleAlert('Stop Loss', result.stopLoss)}
+                      className={cn(
+                        "p-1.5 rounded transition-colors", 
+                        alerts.some(a => a.type === 'Stop Loss') ? "text-yellow-500 bg-yellow-500/20" : "text-zinc-500 hover:text-yellow-500 hover:bg-white/5"
+                      )}
+                    >
+                      {alerts.some(a => a.type === 'Stop Loss') ? <BellRing size={14} /> : <Bell size={14} />}
+                    </button>
+                  </div>
                 </div>
                 <div className="flex items-center justify-between p-3 glass-card bg-transparent border-white/5">
                   <div className="flex items-center gap-2">
                     <ShieldCheck size={14} className="text-green-500/50" />
                     <span className="text-[9px] font-black text-zinc-500 uppercase">TAKE PROFIT</span>
                   </div>
-                  <span className="font-mono font-black text-sm text-green-500">{result.takeProfit}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-black text-sm text-green-500">{result.takeProfit}</span>
+                    <button 
+                      onClick={() => toggleAlert('Take Profit', result.takeProfit)}
+                      className={cn(
+                        "p-1.5 rounded transition-colors", 
+                        alerts.some(a => a.type === 'Take Profit') ? "text-yellow-500 bg-yellow-500/20" : "text-zinc-500 hover:text-yellow-500 hover:bg-white/5"
+                      )}
+                    >
+                      {alerts.some(a => a.type === 'Take Profit') ? <BellRing size={14} /> : <Bell size={14} />}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
