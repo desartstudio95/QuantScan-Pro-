@@ -234,7 +234,21 @@ export const PlansView: React.FC<PlansViewProps> = ({ isUnauthenticated, onGetSt
       )}
 
       {/* 2. PLANOS */}
-      <section id="planos" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-start">
+      <section id="planos" className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 items-stretch">
+        <PlanCard 
+          title="Experimental"
+          price="500 MT"
+          description="Plano de 2 semanas para testar as capacidades básicas da IA."
+          buttonText="Testar IA"
+          onClick={handleAction}
+          features={[
+            "3 análises por dia",
+            "Apenas Curto Prazo (Scalping)",
+            "Score Básico de Probabilidade",
+            "Análise SMC (Smart Money)",
+            "Sem histórico completo"
+          ]}
+        />
         <PlanCard 
           title="Plano Begin"
           price="1.700 MT"
@@ -243,9 +257,9 @@ export const PlansView: React.FC<PlansViewProps> = ({ isUnauthenticated, onGetSt
           onClick={handleAction}
           features={[
             "8 análises por dia",
-            "Score básico de probabilidade",
-            "Suporte a Timeframes maiores",
-            "Sem histórico completo",
+            "Scalping & Intraday",
+            "Score Básico de Probabilidade",
+            "Risco/Retorno e Stop Loss",
             "Suporte via comunidade"
           ]}
         />
@@ -259,11 +273,11 @@ export const PlansView: React.FC<PlansViewProps> = ({ isUnauthenticated, onGetSt
           onClick={handleAction}
           features={[
             "15 análises por dia",
-            "Score avançado de alta precisão",
-            "Detecção automática de timeframe",
-            "Histórico completo de sinais",
-            "Sinais com alta probabilidade",
-            "Suporte priorizado"
+            "Análises de Longo Prazo",
+            "Multi Time Frame (MTF) Integrado",
+            "Detecção Extrema de Liquidez",
+            "Filtro Anti-Fake Breakout (IA)",
+            "Histórico completo de sinais"
           ]}
         />
         <PlanCard 
@@ -274,10 +288,11 @@ export const PlansView: React.FC<PlansViewProps> = ({ isUnauthenticated, onGetSt
           onClick={handleAction}
           features={[
             "30 análises por dia",
-            "Insights institucionais avançados",
-            "Prioridade total de processamento",
-            "Estratégias PRO Logic",
-            "Suporte VIP via WhatsApp"
+            "Tudo do Plano Pro",
+            "SMC Avançado + VWAP & CVD",
+            "Análise Fundamental + Impacto",
+            "Machine Learning Avançado",
+            "Suporte VIP WhatsApp"
           ]}
         />
         <PlanCard 
@@ -289,13 +304,12 @@ export const PlansView: React.FC<PlansViewProps> = ({ isUnauthenticated, onGetSt
           badge="VIP VITALÍCIO"
           onClick={handleAction}
           features={[
-            "Análises ilimitadas",
-            "Insights institucionais avançados",
+            "Análises Ilimitadas",
+            "Tudo do Plano Elite",
             "Acesso vitalício (Sem mensalidade)",
-            "Suporte 1-on-1 (WhatsApp/Telegram)",
-            "Prioridade máxima total",
             "Early access a novas features",
-            "Cursos exclusivos QuantScan"
+            "Cursos exclusivos QuantScan",
+            "Prioridade máxima no servidor"
           ]}
         />
       </section>
@@ -330,10 +344,11 @@ export const PlansView: React.FC<PlansViewProps> = ({ isUnauthenticated, onGetSt
       <section className="space-y-6">
         <h2 className="text-xl font-black italic uppercase tracking-tighter text-white text-center">Comparativo Técnico</h2>
         <div className="glass-card overflow-hidden !p-0 overflow-x-auto shadow-2xl">
-          <table className="w-full min-w-[600px] text-left border-collapse">
+          <table className="w-full min-w-[700px] text-left border-collapse">
             <thead>
               <tr className="bg-white/5 font-black uppercase italic text-[10px] tracking-widest text-zinc-400">
-                <th className="p-4 border-b border-white/5">Funcionalidade</th>
+                <th className="p-4 border-b border-white/5 whitespace-nowrap">Funcionalidade</th>
+                <th className="p-4 border-b border-white/5 text-center">Experimental (14d)</th>
                 <th className="p-4 border-b border-white/5 text-center">Begin</th>
                 <th className="p-4 border-b border-white/5 text-center text-brand-red">Pro</th>
                 <th className="p-4 border-b border-white/5 text-center">Elite</th>
@@ -342,15 +357,17 @@ export const PlansView: React.FC<PlansViewProps> = ({ isUnauthenticated, onGetSt
             </thead>
             <tbody className="text-xs font-medium text-zinc-300">
               {[
-                { label: "Nº de Análises", free: "8 / dia", pro: "15 / dia", elite: "30 / dia", lifetime: "Ilimitado" },
-                { label: "Score de Probabilidade", free: "Básico", pro: "Avançado", elite: "Avançado+", lifetime: "Avançado+" },
-                { label: "IA Adaptativa", free: "Não", pro: "Sim", elite: "Sim", lifetime: "Sim" },
-                { label: "Histórico de Sinais", free: "Limitado", pro: "Completo", elite: "Completo", lifetime: "Completo" },
-                { label: "Suporte", free: "Comunidade", pro: "Prioritário", elite: "VIP Individual", lifetime: "Premium 1-on-1" },
-                { label: "Processamento", free: "Normal", pro: "Rápido", elite: "Ultra Prioridade", lifetime: "Ultra Prioridade" },
+                { label: "Nº de Análises", exp: "3 / dia", free: "8 / dia", pro: "15 / dia", elite: "30 / dia", lifetime: "Ilimitado" },
+                { label: "Modo Longo Prazo", exp: "Não", free: "Não", pro: "Sim", elite: "Sim", lifetime: "Sim" },
+                { label: "Multi Timeframe (MTF)", exp: "Básico", free: "Básico", pro: "Avançado", elite: "Institucional", lifetime: "Institucional" },
+                { label: "Filtro SMC & Liquidez", exp: "Básico", free: "Básico", pro: "Avançado", elite: "Avançado+", lifetime: "Avançado+" },
+                { label: "Machine Learning Anti-Fake", exp: "Não", free: "Não", pro: "Sim", elite: "Avançado", lifetime: "Avançado" },
+                { label: "Análise Fundamental", exp: "Não", free: "Não", pro: "Não", elite: "Sim", lifetime: "Sim" },
+                { label: "Processamento Prioritário", exp: "Normal", free: "Normal", pro: "Médio", elite: "Alta", lifetime: "Máxima" },
               ].map((row, idx) => (
                 <tr key={idx} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                  <td className="p-4 font-bold text-white">{row.label}</td>
+                  <td className="p-4 font-bold text-white whitespace-nowrap">{row.label}</td>
+                  <td className="p-4 text-center text-zinc-500">{row.exp}</td>
                   <td className="p-4 text-center text-zinc-500">{row.free}</td>
                   <td className="p-4 text-center font-bold text-white">{row.pro}</td>
                   <td className="p-4 text-center text-zinc-300">{row.elite}</td>

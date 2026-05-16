@@ -132,11 +132,14 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handlePlanChange = async (user: any, newPlan: 'basic' | 'pro' | 'elite' | 'lifetime') => {
+  const handlePlanChange = async (user: any, newPlan: 'basic' | 'experimental' | 'pro' | 'elite' | 'lifetime') => {
     let limit = 8;
     let isPremium = false;
 
-    if (newPlan === 'pro') {
+    if (newPlan === 'experimental') {
+      limit = 3;
+      isPremium = false;
+    } else if (newPlan === 'pro') {
       limit = 15;
       isPremium = true;
     } else if (newPlan === 'elite' || newPlan === 'lifetime') {
@@ -153,6 +156,11 @@ export const AdminDashboard: React.FC = () => {
     // Atualiza a validade se mudar o plano
     if (newPlan === 'lifetime') {
       updates.subscriptionEndsAt = null; // Lifetime não expira
+    } else if (newPlan === 'experimental') {
+      // Experimental dura 14 dias
+      if (user.isApproved) {
+        updates.subscriptionEndsAt = Date.now() + 14 * 24 * 60 * 60 * 1000;
+      }
     } else {
       // Se não tinha data de fim e já estava aprovado, define 30 dias a partir de agora
       if (user.isApproved && !user.subscriptionEndsAt) {
@@ -390,9 +398,10 @@ export const AdminDashboard: React.FC = () => {
                   <td className="p-4 text-center">
                     <select 
                       value={user.plan || 'basic'}
-                      onChange={(e) => handlePlanChange(user, e.target.value as 'basic' | 'pro' | 'elite' | 'lifetime')}
+                      onChange={(e) => handlePlanChange(user, e.target.value as 'experimental' | 'basic' | 'pro' | 'elite' | 'lifetime')}
                       className="bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white uppercase font-black tracking-widest focus:outline-none focus:border-brand-red/50 cursor-pointer"
                     >
+                      <option value="experimental">Exp (2 Sem)</option>
                       <option value="basic">Básico</option>
                       <option value="pro">Premium (Pro)</option>
                       <option value="elite">Elite</option>

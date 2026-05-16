@@ -62,6 +62,12 @@ export interface AnalysisResponse {
   entry: string;
   stopLoss: string;
   takeProfit: string;
+  takeProfit2?: string;
+  takeProfit3?: string;
+  riskReward?: string;
+  duration?: string;
+  riskLevel?: string;
+  signalType?: string;
   score: number;
   justification: string;
   alerta: string;

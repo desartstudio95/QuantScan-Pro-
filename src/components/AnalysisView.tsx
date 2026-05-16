@@ -151,19 +151,24 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
       }
 
       const base64 = preview.split(',')[1];
-      const analysis = await analyzeForexChart(base64, undefined, mode);
+      const analysis = await analyzeForexChart(base64, undefined, mode, userData?.plan);
       analysis.score = Math.round(analysis.score);
       setResult(analysis);
       
       if (auth.currentUser) {
+        const sanitizedAnalysis = { ...analysis };
+        if (sanitizedAnalysis.pair) sanitizedAnalysis.pair = String(sanitizedAnalysis.pair).substring(0, 100);
+        if (sanitizedAnalysis.timeframe) sanitizedAnalysis.timeframe = String(sanitizedAnalysis.timeframe).substring(0, 50);
+        sanitizedAnalysis.score = Math.round(Number(sanitizedAnalysis.score) || 0);
+
         await addDoc(collection(db, 'signals'), {
-          ...analysis,
+          ...sanitizedAnalysis,
           screenshotUrl: downloadUrl,
           userId: auth.currentUser.uid,
           createdAt: serverTimestamp(),
           timestamp: Date.now(),
           result: SignalResult.PENDING,
-          type: analysis.decision
+          type: sanitizedAnalysis.decision || 'WAIT'
         }).catch(err => {
           handleFirestoreError(err, OperationType.CREATE, 'signals');
           throw err;
@@ -456,6 +461,39 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
                   <span className="text-xs font-black">{result.timeframe}</span>
                 </div>
               </div>
+              
+              {(result.riskReward || result.riskLevel || result.duration || result.signalType) && (
+                <div className="w-full pt-4 border-t border-white/5 grid grid-cols-2 gap-3">
+                  {result.signalType && (
+                    <div className="glass-card p-2">
+                      <span className="block text-[8px] text-zinc-600 uppercase font-black mb-0.5">ESTILO</span>
+                      <span className="text-[10px] font-black tracking-widest">{result.signalType}</span>
+                    </div>
+                  )}
+                  {result.riskLevel && (
+                    <div className="glass-card p-2">
+                      <span className="block text-[8px] text-zinc-600 uppercase font-black mb-0.5">RISCO</span>
+                      <span className={cn(
+                        "text-[10px] font-black tracking-widest",
+                        result.riskLevel.toUpperCase() === 'LOW' ? "text-green-500" :
+                        result.riskLevel.toUpperCase() === 'HIGH' ? "text-brand-red" : "text-orange-500"
+                      )}>{result.riskLevel}</span>
+                    </div>
+                  )}
+                  {result.riskReward && (
+                    <div className="glass-card p-2">
+                      <span className="block text-[8px] text-zinc-600 uppercase font-black mb-0.5">RISCO/RETORNO</span>
+                      <span className="text-[10px] font-black font-mono">{result.riskReward}</span>
+                    </div>
+                  )}
+                  {result.duration && (
+                    <div className="glass-card p-2">
+                      <span className="block text-[8px] text-zinc-600 uppercase font-black mb-0.5">DURAÇÃO</span>
+                      <span className="text-[10px] font-black tracking-widest uppercase">{result.duration}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Trading Decision */}
@@ -526,21 +564,63 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
                 <div className="flex items-center justify-between p-3 glass-card bg-transparent border-white/5">
                   <div className="flex items-center gap-2">
                     <ShieldCheck size={14} className="text-green-500/50" />
-                    <span className="text-[9px] font-black text-zinc-500 uppercase">TAKE PROFIT</span>
+                    <span className="text-[9px] font-black text-zinc-500 uppercase">TAKE PROFIT 1</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="font-mono font-black text-sm text-green-500">{result.takeProfit}</span>
                     <button 
-                      onClick={() => toggleAlert('Take Profit', result.takeProfit)}
+                      onClick={() => toggleAlert('Take Profit 1', result.takeProfit)}
                       className={cn(
                         "p-1.5 rounded transition-colors", 
-                        alerts.some(a => a.type === 'Take Profit') ? "text-yellow-500 bg-yellow-500/20" : "text-zinc-500 hover:text-yellow-500 hover:bg-white/5"
+                        alerts.some(a => a.type === 'Take Profit 1') ? "text-yellow-500 bg-yellow-500/20" : "text-zinc-500 hover:text-yellow-500 hover:bg-white/5"
                       )}
                     >
-                      {alerts.some(a => a.type === 'Take Profit') ? <BellRing size={14} /> : <Bell size={14} />}
+                      {alerts.some(a => a.type === 'Take Profit 1') ? <BellRing size={14} /> : <Bell size={14} />}
                     </button>
                   </div>
                 </div>
+                
+                {result.takeProfit2 && (
+                  <div className="flex items-center justify-between p-3 glass-card bg-transparent border-white/5">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck size={14} className="text-green-500/50" />
+                      <span className="text-[9px] font-black text-zinc-500 uppercase">TAKE PROFIT 2</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-black text-sm text-green-500">{result.takeProfit2}</span>
+                      <button 
+                        onClick={() => toggleAlert('Take Profit 2', result.takeProfit2!)}
+                        className={cn(
+                          "p-1.5 rounded transition-colors", 
+                          alerts.some(a => a.type === 'Take Profit 2') ? "text-yellow-500 bg-yellow-500/20" : "text-zinc-500 hover:text-yellow-500 hover:bg-white/5"
+                        )}
+                      >
+                        {alerts.some(a => a.type === 'Take Profit 2') ? <BellRing size={14} /> : <Bell size={14} />}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {result.takeProfit3 && (
+                  <div className="flex items-center justify-between p-3 glass-card bg-transparent border-white/5">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck size={14} className="text-green-500/50" />
+                      <span className="text-[9px] font-black text-zinc-500 uppercase">TAKE PROFIT 3</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-black text-sm text-green-500">{result.takeProfit3}</span>
+                      <button 
+                        onClick={() => toggleAlert('Take Profit 3', result.takeProfit3!)}
+                        className={cn(
+                          "p-1.5 rounded transition-colors", 
+                          alerts.some(a => a.type === 'Take Profit 3') ? "text-yellow-500 bg-yellow-500/20" : "text-zinc-500 hover:text-yellow-500 hover:bg-white/5"
+                        )}
+                      >
+                        {alerts.some(a => a.type === 'Take Profit 3') ? <BellRing size={14} /> : <Bell size={14} />}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
