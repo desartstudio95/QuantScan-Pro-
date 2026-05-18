@@ -16,7 +16,7 @@ const startServer = async () => {
     try {
       const { imageBase64, userNotes, preferredMode, userPlan } = req.body;
 
-      const model = 'gemini-3.1-pro-preview';
+      const model = 'gemini-2.5-flash';
   
       const systemInstruction = `
 # QUANTSCAN IA — MODO MULTI TIME FRAME + LONG TERM ANALYSIS
