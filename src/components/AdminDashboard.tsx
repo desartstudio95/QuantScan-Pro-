@@ -349,7 +349,7 @@ export const AdminDashboard: React.FC = () => {
                    </span>
                  </div>
                  <p className="text-[10px] text-brand-red font-bold">
-                   Atenção: Mantenha esta aba aberta para que o scanner automatizado (Robô Funcional no Browser) permaneça operando. Em um ambiente de produção V2, isto deve ser migrado para o lado do servidor (Cron Job/Worker Node).
+                   Atenção: A aplicação entra em repouso quando não há abas abertas. Para o Robô funcionar 24/7 de forma totalmente automática, utilize um serviço gratuito como o <strong>cron-job.org</strong> ou <strong>UptimeRobot</strong> para visitar a URL <code>{window.location.origin}/api/cron/auto-scanner</code> a cada 1 minuto.
                  </p>
                </div>
             )}

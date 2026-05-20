@@ -6,7 +6,7 @@ import * as OneSignal from 'onesignal-node';
 
 // Import Firebase (Server-side compatible since v9 supports Node environments)
 import { db } from "./src/lib/firebase";
-import { doc, getDoc, setDoc, addDoc, collection } from "firebase/firestore";
+import { doc, getDoc, setDoc, addDoc, collection, runTransaction } from "firebase/firestore";
 
 async function startServer() {
   const app = express();
@@ -133,10 +133,15 @@ _Analisado por Inteligência Institucional (Worker Node)_
       }
   };
 
-  setInterval(async () => {
-     try {
-        const settingsRef = doc(db, 'settings', 'app');
-        const settingsSnap = await getDoc(settingsRef);
+  const runAutoScannerJob = async () => {
+    try {
+      const settingsRef = doc(db, 'settings', 'app');
+      let botToken = '';
+      let chatId = '';
+      let shouldExecute = false;
+
+      await runTransaction(db, async (transaction) => {
+        const settingsSnap = await transaction.get(settingsRef);
         if (!settingsSnap.exists()) return;
         
         const data = settingsSnap.data();
@@ -148,36 +153,49 @@ _Analisado por Inteligência Institucional (Worker Node)_
 
         // Check if enough time has passed based on interval
         if (now - lastScan >= intervalMins * 60 * 1000) {
-           console.log("[Worker] Executing Auto-Scanner...");
-           
-           // Lock to prevent duplicates if multiple instances exist
-           await setDoc(settingsRef, { lastAutoScan: now }, { merge: true });
-
-           const pairs = ['EURUSD', 'GBPUSD', 'BTCUSD', 'XAU/USD', 'US30'];
-           const randomPair = pairs[Math.floor(Math.random() * pairs.length)];
-           
-           const decision = Math.random() > 0.5 ? 'BUY' : 'SELL';
-           const score = Math.floor(Math.random() * (99 - 70 + 1)) + 70;
-           
-           const signalData = {
-               pair: randomPair,
-               decision,
-               timeframe: '15m - Modo Robô (Machine Learning Adaptativo)',
-               score,
-               entry: 'Preço Atual Mkt',
-               takeProfit: decision === 'BUY' ? '+25 pips' : '-25 pips',
-               stopLoss: decision === 'BUY' ? '-15 pips' : '+15 pips',
-           };
-
-           if (data.telegramBotToken && data.telegramChatId) {
-             await sendTelegramAlertServer(signalData, data.telegramBotToken, data.telegramChatId);
-           }
-           console.log(`[Worker] Sinais gerados e enviados para ${randomPair}`);
+          // Atomic lock: update lastAutoScan inside transaction
+          transaction.update(settingsRef, { lastAutoScan: now });
+          shouldExecute = true;
+          botToken = data.telegramBotToken || '';
+          chatId = data.telegramChatId || '';
         }
-     } catch (e) {
-        console.error("[Worker] Erro no Auto-Scanner:", e);
-     }
-  }, 60000); // Check every minute
+      });
+
+      if (shouldExecute) {
+        console.log("[Worker] Executing Auto-Scanner...");
+        const pairs = ['EURUSD', 'GBPUSD', 'BTCUSD', 'XAU/USD', 'US30'];
+        const randomPair = pairs[Math.floor(Math.random() * pairs.length)];
+        
+        const decision = Math.random() > 0.5 ? 'BUY' : 'SELL';
+        const score = Math.floor(Math.random() * (99 - 70 + 1)) + 70;
+        
+        const signalData = {
+            pair: randomPair,
+            decision,
+            timeframe: '15m - Modo Robô (Machine Learning Adaptativo)',
+            score,
+            entry: 'Preço Atual Mkt',
+            takeProfit: decision === 'BUY' ? '+25 pips' : '-25 pips',
+            stopLoss: decision === 'BUY' ? '-15 pips' : '+15 pips',
+        };
+
+        if (botToken && chatId) {
+          await sendTelegramAlertServer(signalData, botToken, chatId);
+        }
+        console.log(`[Worker] Sinais gerados e enviados para ${randomPair}`);
+      }
+    } catch (e) {
+      console.error("[Worker] Erro no Auto-Scanner:", e);
+    }
+  };
+
+  setInterval(runAutoScannerJob, 60000); // Check every minute internally
+
+  app.get('/api/cron/auto-scanner', async (req, res) => {
+    // This endpoint can be pinged by UptimeRobot or Cron-job.org to prevent container sleep
+    await runAutoScannerJob();
+    res.json({ status: "ok", message: "Scanner check executed", timestamp: new Date().toISOString() });
+  });
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log('Server running on http://localhost:' + PORT);
