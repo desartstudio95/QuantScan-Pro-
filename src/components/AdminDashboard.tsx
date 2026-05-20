@@ -40,50 +40,12 @@ export const AdminDashboard: React.FC = () => {
   const [telegramChatId, setTelegramChatId] = useState('');
 
   useEffect(() => {
-    let intervalId: any;
     if (autoScannerActive) {
-       intervalId = setInterval(async () => {
-          setAutoScannerStatus('Analisando Mercados...');
-          
-          try {
-             const pairs = ['EURUSD', 'GBPUSD', 'BTCUSD', 'XAU/USD', 'US30'];
-             const randomPair = pairs[Math.floor(Math.random() * pairs.length)];
-             
-             // This hits the backend just like the manual analyzer but runs in the background
-             console.log("Auto-Scanner: Triggering analysis for", randomPair);
-             
-             // Simulating the actual POST call that /AnalysisView.tsx normally does:
-             // await axios.post('/api/gemini/analyze', { pair: randomPair, timeframe: '15m' });
-             
-             setTimeout(() => {
-                const decision = Math.random() > 0.5 ? 'BUY' : 'SELL';
-                const score = Math.floor(Math.random() * (99 - 70 + 1)) + 70;
-                sendTelegramAlert({
-                  pair: randomPair,
-                  decision,
-                  timeframe: '15m - Modo Robô (Automático)',
-                  score,
-                  entry: decision === 'BUY' ? 'Preço Atual Mkt' : 'Preço Atual Mkt',
-                  takeProfit: decision === 'BUY' ? '+25 pips' : '-25 pips',
-                  stopLoss: decision === 'BUY' ? '-15 pips' : '+15 pips',
-                }).catch(console.error);
-
-                setAutoScannerStatus(`Sinal em ${randomPair} Enviado! Esperando...`);
-             }, 5000);
-
-          } catch (e) {
-             console.error("Auto Scanner erro", e);
-             setAutoScannerStatus("Erro. Retentando na próxima vez...");
-          }
-       }, autoScannerInterval * 60 * 1000);
+       setAutoScannerStatus('Ativo no Servidor (Worker Node)');
     } else {
        setAutoScannerStatus('Standby');
     }
-
-    return () => {
-       if (intervalId) clearInterval(intervalId);
-    };
-  }, [autoScannerActive, autoScannerInterval]);
+  }, [autoScannerActive]);
 
   const handleCreateTestimonial = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -136,6 +98,8 @@ export const AdminDashboard: React.FC = () => {
         setMaintenanceMessage(docSnap.data().maintenanceMessage || '');
         setTelegramBotToken(docSnap.data().telegramBotToken || '');
         setTelegramChatId(docSnap.data().telegramChatId || '');
+        setAutoScannerActive(docSnap.data().autoScannerActive || false);
+        setAutoScannerInterval(docSnap.data().autoScannerInterval || 15);
       }
     }, (error) => {
       console.warn("Failed to listen to settings:", error);
@@ -157,7 +121,9 @@ export const AdminDashboard: React.FC = () => {
         maintenanceMode,
         maintenanceMessage,
         telegramBotToken,
-        telegramChatId
+        telegramChatId,
+        autoScannerActive,
+        autoScannerInterval
       }, { merge: true });
       alert('Configurações salvas com sucesso!');
     } catch (err) {

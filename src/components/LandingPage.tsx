@@ -173,18 +173,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewPl
               },
               {
                 icon: ShieldCheck,
-                title: "Auto-Trading Inteligente",
-                desc: "Integração via Webhooks/API. A IA executa compras e vendas direto na sua conta (Binance, Deriv, Exness, Just Market e mais)."
+                title: "Auto-Trading & Machine Learning",
+                desc: "Integração via Webhooks/API. A IA possui Modo Adaptativo Avançado, aprendendo continuamente e executando compras e vendas direto na sua conta."
               },
               {
                 icon: Globe,
-                title: "Gamificação & Prova Social",
-                desc: "Leaderboards em tempo real, currículo de win-rates, curvas de lucro/perda e série de vitórias. Confiança absoluta no sistema."
+                title: "Gamificação & Leaderboards",
+                desc: "Placar em tempo real, currículo de win-rates, curvas de lucro/perda e série de vitórias provando a autenticidade do IA."
               },
               {
                 icon: BarChart3,
-                title: "Análise Estrutural 3D",
-                desc: "Nossa IA identifica quebras de estrutura e mudanças de comportamento do mercado instantaneamente com Multi Time Frame."
+                title: "Multi Time Frame 3D",
+                desc: "Nossa IA identifica tendências macro e executa entradas precisas no micro instantaneamente."
               },
               {
                 icon: ShieldCheck,
