@@ -35,6 +35,7 @@ export const AdminDashboard: React.FC = () => {
   const [autoScannerActive, setAutoScannerActive] = useState(false);
   const [autoScannerInterval, setAutoScannerInterval] = useState(15);
   const [autoScannerStatus, setAutoScannerStatus] = useState('Standby');
+  const [showCronTutorial, setShowCronTutorial] = useState(false);
 
   const [telegramBotToken, setTelegramBotToken] = useState('');
   const [telegramChatId, setTelegramChatId] = useState('');
@@ -351,6 +352,12 @@ export const AdminDashboard: React.FC = () => {
                  <p className="text-[10px] text-brand-red font-bold">
                    Atenção: A aplicação entra em repouso quando não há abas abertas. Para o Robô funcionar 24/7 de forma totalmente automática, utilize um serviço gratuito como o <strong>cron-job.org</strong> ou <strong>UptimeRobot</strong> para visitar a URL <code>{window.location.origin}/api/cron/auto-scanner</code> a cada 1 minuto.
                  </p>
+                 <button
+                   onClick={() => setShowCronTutorial(true)}
+                   className="mt-2 w-full bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/30 text-xs font-bold py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+                 >
+                   Ver Passo a Passo de Configuração
+                 </button>
                </div>
             )}
           </div>
@@ -559,6 +566,75 @@ export const AdminDashboard: React.FC = () => {
               <p className="text-xs font-black uppercase tracking-widest">Nenhum usuário encontrado</p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Cron Tutorial Modal */}
+      {showCronTutorial && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#0f0f13] border border-white/10 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center p-6 border-b border-white/5 bg-white/5">
+              <h3 className="font-black italic uppercase tracking-widest text-lg">Configurar Auto-Scanner 24/7</h3>
+              <button onClick={() => setShowCronTutorial(false)} className="text-zinc-500 hover:text-white transition-colors">
+                ✕
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto space-y-6 text-sm text-zinc-300">
+              <p>
+                Para que o Robô de Análise (Auto-Scanner) envie sinais 24h por dia - mesmo com o seu computador desligado ou a página fechada - você precisa de um "Cron Job" para manter a inteligência ativa no servidor.
+              </p>
+
+              <div className="space-y-4">
+                <h4 className="font-bold text-white flex items-center gap-2">
+                  <span className="bg-blue-500/20 text-blue-400 w-6 h-6 rounded-full flex items-center justify-center text-xs border border-blue-500/30">1</span>
+                  Crie uma conta no cron-job.org
+                </h4>
+                <p className="ml-8 text-zinc-400">
+                  Acesse <a href="https://cron-job.org" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">cron-job.org</a> e crie uma conta gratuita.
+                </p>
+
+                <h4 className="font-bold text-white flex items-center gap-2">
+                  <span className="bg-blue-500/20 text-blue-400 w-6 h-6 rounded-full flex items-center justify-center text-xs border border-blue-500/30">2</span>
+                  Crie um Novo Cronjob (Create Cronjob)
+                </h4>
+                <ul className="ml-8 list-disc list-inside space-y-2 text-zinc-400">
+                  <li><strong>Title:</strong> QuantScan IA Auto-Worker (ou qualquer nome)</li>
+                  <li><strong>URL:</strong> Copie e cole a URL abaixo:</li>
+                </ul>
+                <div className="ml-8 bg-black border border-white/10 p-3 rounded-lg text-xs font-mono select-all overflow-x-auto text-green-400">
+                  {window.location.origin}/api/cron/auto-scanner
+                </div>
+
+                <h4 className="font-bold text-white flex items-center gap-2">
+                  <span className="bg-blue-500/20 text-blue-400 w-6 h-6 rounded-full flex items-center justify-center text-xs border border-blue-500/30">3</span>
+                  Configure o Tempo (Schedule)
+                </h4>
+                <ul className="ml-8 list-disc list-inside space-y-2 text-zinc-400">
+                  <li>Selecione <strong>User-defined</strong>.</li>
+                  <li>Marque os dias, horas, e coloque para executar a cada <strong>1 minuto</strong>.</li>
+                  <li>Clique em <strong>Create</strong>.</li>
+                </ul>
+                
+                <h4 className="font-bold text-white flex items-center gap-2">
+                  <span className="bg-blue-500/20 text-blue-400 w-6 h-6 rounded-full flex items-center justify-center text-xs border border-blue-500/30">4</span>
+                  Pronto!
+                </h4>
+                <p className="ml-8 text-zinc-400">
+                  Agora o Cron Job fará um "ping" na sua Inteligência a cada minuto. Se o Auto-Scanner estiver ativado nos painéis acima, ele vai enviar os sinais automaticamente para o Telegram, mesmo que você não esteja no sistema.
+                </p>
+              </div>
+            </div>
+            
+            <div className="p-6 border-t border-white/5 flex justify-end bg-white/5">
+              <button 
+                onClick={() => setShowCronTutorial(false)}
+                className="bg-white text-black px-6 py-2 rounded-xl font-bold hover:bg-zinc-200 transition-colors text-sm"
+              >
+                Entendi
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
