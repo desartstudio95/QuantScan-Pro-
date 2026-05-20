@@ -3,8 +3,12 @@ import { motion } from 'motion/react';
 import { Signal, SignalResult, SignalType } from '../types';
 import { cn } from '../lib/utils';
 import { Clock, TrendingUp, TrendingDown, ChevronDown, ChevronUp } from 'lucide-react';
-import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { fetchCurrentPrice, checkHistoricalSignalResult } from '../services/marketData';
+import { TradingChart } from './TradingChart';
+import { RiskCalculator } from './RiskCalculator';
+import axios from 'axios';
 
 export const SignalHistory: React.FC = () => {
   const [signals, setSignals] = useState<Signal[]>([]);
@@ -12,6 +16,36 @@ export const SignalHistory: React.FC = () => {
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [expandedSignalIds, setExpandedSignalIds] = useState<string[]>([]);
+  const [marketPrices, setMarketPrices] = useState<Record<string, number>>({});
+  const [sortBy, setSortBy] = useState<'score' | 'timestamp'>('score');
+
+  useEffect(() => {
+    const fetchPrices = async () => {
+      const pendingSignals = signals.filter(s => s.result === SignalResult.PENDING);
+      if (pendingSignals.length === 0) return;
+      
+      const pairs = Array.from(new Set(pendingSignals.map(s => s.pair)));
+
+      try {
+        const promises = pairs.map(symbol => fetchCurrentPrice(symbol));
+        const results = await Promise.all(promises);
+        
+        const newPrices: Record<string, number> = {};
+        results.forEach((price, index) => {
+          if (price !== null) {
+            newPrices[pairs[index]] = price;
+          }
+        });
+        setMarketPrices(prev => ({ ...prev, ...newPrices }));
+      } catch (e) {
+        console.error("Error fetching prices for history", e);
+      }
+    };
+
+    fetchPrices();
+    const interval = setInterval(fetchPrices, 60000);
+    return () => clearInterval(interval);
+  }, [signals]);
 
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -28,7 +62,6 @@ export const SignalHistory: React.FC = () => {
       snapshot.forEach((doc) => {
         newSignals.push({ id: doc.id, ...doc.data() } as Signal);
       });
-      newSignals.sort((a, b) => b.timestamp - a.timestamp);
       setSignals(newSignals);
       setLoading(false);
     }, (error) => {
@@ -40,6 +73,64 @@ export const SignalHistory: React.FC = () => {
       unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    const handleResolvedSignals = async () => {
+      const pendingSignals = signals.filter(s => s.result === SignalResult.PENDING && s.id);
+      if (pendingSignals.length === 0) return;
+
+      for (const signal of pendingSignals) {
+        let finalResult: string | null = null;
+        
+        // Check historical first
+        const historicalResult = await checkHistoricalSignalResult(signal);
+        if (historicalResult) {
+           finalResult = historicalResult;
+        } else {
+           // Otherwise check live current market price
+           const currentPrice = marketPrices[signal.pair];
+           if (currentPrice) {
+             const tp1Str = signal.takeProfit.replace(/[^0-9.]/g, '');
+             const tp2Str = signal.takeProfit2 ? signal.takeProfit2.replace(/[^0-9.]/g, '') : null;
+             const tp3Str = signal.takeProfit3 ? signal.takeProfit3.replace(/[^0-9.]/g, '') : null;
+             const slStr = signal.stopLoss.replace(/[^0-9.]/g, '');
+             
+             const tp1 = parseFloat(tp1Str);
+             const tp2 = tp2Str ? parseFloat(tp2Str) : null;
+             const tp3 = tp3Str ? parseFloat(tp3Str) : null;
+             const sl = parseFloat(slStr);
+             
+             if (!isNaN(tp1) && !isNaN(sl)) {
+               if (signal.type === SignalType.BUY) {
+                  if (tp3 && currentPrice >= tp3) finalResult = 'Take Profit 3';
+                  else if (tp2 && currentPrice >= tp2) finalResult = 'Take Profit 2';
+                  else if (currentPrice >= tp1) finalResult = 'Take Profit 1';
+                  else if (currentPrice <= sl) finalResult = SignalResult.LOSS;
+               } else if (signal.type === SignalType.SELL) {
+                  if (tp3 && currentPrice <= tp3) finalResult = 'Take Profit 3';
+                  else if (tp2 && currentPrice <= tp2) finalResult = 'Take Profit 2';
+                  else if (currentPrice <= tp1) finalResult = 'Take Profit 1';
+                  else if (currentPrice >= sl) finalResult = SignalResult.LOSS;
+               }
+             }
+           }
+        }
+
+        if (finalResult && finalResult !== SignalResult.PENDING && finalResult !== 'Neutro') {
+          // Update in Firebase
+          try {
+            await updateDoc(doc(db, 'signals', signal.id!), { result: finalResult });
+          } catch (e) {
+            console.error("Failed to update closed signal", e);
+          }
+        }
+      }
+    };
+
+    if (Object.keys(marketPrices).length > 0) {
+       handleResolvedSignals();
+    }
+  }, [signals, marketPrices]);
 
   if (loading) {
     return (
@@ -70,10 +161,86 @@ export const SignalHistory: React.FC = () => {
     return true;
   });
 
+  const sortedSignals = [...filteredSignals].sort((a, b) => {
+    if (sortBy === 'score') {
+      return (b.score || 0) - (a.score || 0);
+    }
+    return b.timestamp - a.timestamp;
+  });
+
   const toggleSignal = (id: string) => {
     setExpandedSignalIds(prev => 
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
+  };
+
+  const getLiveSignalResult = (signal: Signal): string => {
+    if (signal.result === SignalResult.GAIN) return 'Take Profit Atingido';
+    if (signal.result === SignalResult.LOSS) return SignalResult.LOSS;
+    if (signal.result === SignalResult.BE) return SignalResult.BE;
+    // We also support custom string results like 'Take Profit 1', 'Take Profit 2' being saved as signal.result
+    if (signal.result && signal.result !== SignalResult.PENDING) return signal.result;
+
+    const currentPrice = marketPrices[signal.pair];
+    if (!currentPrice) return 'Neutro';
+
+    const tp1Str = signal.takeProfit.replace(/[^0-9.]/g, '');
+    const tp2Str = signal.takeProfit2 ? signal.takeProfit2.replace(/[^0-9.]/g, '') : null;
+    const tp3Str = signal.takeProfit3 ? signal.takeProfit3.replace(/[^0-9.]/g, '') : null;
+    const slStr = signal.stopLoss.replace(/[^0-9.]/g, '');
+    const entryStr = signal.entry.replace(/[^0-9.]/g, '');
+    
+    const tp1 = parseFloat(tp1Str);
+    const tp2 = tp2Str ? parseFloat(tp2Str) : null;
+    const tp3 = tp3Str ? parseFloat(tp3Str) : null;
+    const sl = parseFloat(slStr);
+    const entry = parseFloat(entryStr);
+
+    if (isNaN(tp1) || isNaN(sl) || isNaN(entry)) return 'Neutro';
+
+    if (signal.type === SignalType.BUY) {
+      if (tp3 && currentPrice >= tp3) return 'Take Profit 3';
+      if (tp2 && currentPrice >= tp2) return 'Take Profit 2';
+      if (currentPrice >= tp1) return 'Take Profit 1';
+      if (currentPrice <= sl) return SignalResult.LOSS;
+      
+      if (currentPrice > entry) {
+         return 'Neutro';
+      } else {
+         return 'Ativo';
+      }
+    } else if (signal.type === SignalType.SELL) {
+      if (tp3 && currentPrice <= tp3) return 'Take Profit 3';
+      if (tp2 && currentPrice <= tp2) return 'Take Profit 2';
+      if (currentPrice <= tp1) return 'Take Profit 1';
+      if (currentPrice >= sl) return SignalResult.LOSS;
+      
+      if (currentPrice < entry) {
+         return 'Neutro';
+      } else {
+         return 'Ativo';
+      }
+    }
+    return 'Neutro';
+  };
+
+  const getDisplayPrice = (signal: Signal, status: string): string => {
+    if (status === 'Neutro' || status === 'Ativo') {
+      return marketPrices[signal.pair] ? marketPrices[signal.pair].toFixed(5) : "---";
+    }
+    if (status === 'Take Profit 1' || status === 'Take Profit Atingido' || status === SignalResult.GAIN) {
+      return signal.takeProfit;
+    }
+    if (status === 'Take Profit 2' && signal.takeProfit2) {
+      return signal.takeProfit2;
+    }
+    if (status === 'Take Profit 3' && signal.takeProfit3) {
+      return signal.takeProfit3;
+    }
+    if (status === SignalResult.LOSS) {
+      return signal.stopLoss;
+    }
+    return "Fechado";
   };
 
   return (
@@ -108,18 +275,26 @@ export const SignalHistory: React.FC = () => {
             )}
           </div>
           <span className="bg-brand-gray px-4 py-2 rounded-full text-zinc-400 text-sm font-bold border border-white/5 whitespace-nowrap">
-            {filteredSignals.length} Sinais
+            {sortedSignals.length} Sinais
           </span>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as 'score' | 'timestamp')}
+            className="bg-brand-gray/50 text-sm text-zinc-300 outline-none px-3 py-2 rounded-lg border border-white/5 cursor-pointer hover:border-white/20 transition-all ml-2"
+          >
+            <option value="score">Maior Score</option>
+            <option value="timestamp">Mais Recentes</option>
+          </select>
         </div>
       </header>
 
       <div className="grid grid-cols-1 gap-4">
-        {filteredSignals.length === 0 ? (
+        {sortedSignals.length === 0 ? (
           <div className="glass-card p-12 text-center text-zinc-500">
             Nenhum sinal encontrado. Comece realizando um novo scan.
           </div>
         ) : (
-          filteredSignals.map((signal) => {
+          sortedSignals.map((signal) => {
             const isExpanded = expandedSignalIds.includes(signal.id);
             return (
               <div 
@@ -135,7 +310,7 @@ export const SignalHistory: React.FC = () => {
                     {signal.type === SignalType.BUY ? <TrendingUp size={24} /> : <TrendingDown size={24} />}
                   </div>
 
-                  <div className="grid grid-cols-2 lg:grid-cols-7 flex-1 gap-4 items-center">
+                  <div className="grid grid-cols-2 lg:grid-cols-8 flex-1 gap-4 items-center">
                     <div>
                       <span className="text-[10px] text-zinc-500 font-black uppercase">Ativo / TF</span>
                       <p className="font-bold text-white text-sm">{signal.pair} <span className="text-zinc-500">· {signal.timeframe}</span></p>
@@ -152,6 +327,10 @@ export const SignalHistory: React.FC = () => {
                       <p className="font-bold text-white text-sm">{signal.score}%</p>
                     </div>
                     <div>
+                      <span className="text-[10px] text-zinc-500 font-black uppercase">Entrada</span>
+                      <p className="font-bold text-white text-sm">{signal.entry}</p>
+                    </div>
+                    <div>
                       <span className="text-[10px] text-zinc-500 font-black uppercase">SL / TP</span>
                       <p className="font-bold text-white text-xs">{signal.stopLoss} <span className="text-zinc-600">/</span> <span className="text-zinc-400">{signal.takeProfit}</span></p>
                     </div>
@@ -160,29 +339,39 @@ export const SignalHistory: React.FC = () => {
                       <p className="font-bold text-zinc-300 text-xs whitespace-nowrap">{new Date(signal.timestamp).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</p>
                     </div>
                     <div>
-                      <span className="text-[10px] text-zinc-500 font-black uppercase">Status</span>
+                      <span className="text-[10px] text-zinc-500 font-black uppercase">Status do Sinal</span>
                       <div className={cn(
                         "inline-flex px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest",
-                        signal.result === SignalResult.PENDING ? "bg-blue-500/10 text-blue-500 border border-blue-500/20" : "bg-zinc-800 text-zinc-400 border border-zinc-700"
+                        getLiveSignalResult(signal) === 'Neutro' ? "bg-zinc-500/10 text-zinc-400 border border-zinc-500/20" : 
+                        getLiveSignalResult(signal) === 'Ativo' ? "bg-blue-500/10 text-blue-500 border border-blue-500/20" :
+                        getLiveSignalResult(signal).includes('Take Profit') || getLiveSignalResult(signal) === SignalResult.GAIN ? "bg-green-500/10 text-green-500 border border-green-500/20" :
+                        getLiveSignalResult(signal) === SignalResult.LOSS ? "bg-brand-red/10 text-brand-red border border-brand-red/20" :
+                        getLiveSignalResult(signal) === SignalResult.BE ? "bg-yellow-500/10 text-yellow-500 border border-yellow-500/20" :
+                        "bg-zinc-800 text-zinc-400 border border-zinc-700"
                       )}>
-                        {signal.result === SignalResult.PENDING ? "Válido" : "Expirado"}
+                        {getLiveSignalResult(signal)}
                       </div>
                     </div>
                     <div className="text-right">
-                      <span className="text-[10px] text-zinc-500 font-black uppercase">Resultado</span>
+                      <span className="text-[10px] text-zinc-500 font-black uppercase">
+                         {['Neutro', 'Ativo'].includes(getLiveSignalResult(signal)) ? "Preço Atual" : "Fechamento"}
+                      </span>
                       <motion.div 
-                        key={signal.result}
+                        key={marketPrices[signal.pair] || signal.result}
                         initial={{ opacity: 0, scale: 0.8 }}
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ duration: 0.3, type: 'spring', bounce: 0.4 }}
-                        className={cn(
-                          "flex items-center justify-end gap-1 font-black italic uppercase text-sm",
-                          signal.result === SignalResult.GAIN ? "text-green-500" : 
-                          signal.result === SignalResult.LOSS ? "text-brand-red" : 
-                          "text-zinc-500"
-                        )}
+                        className="flex flex-col items-end"
                       >
-                        {signal.result}
+                        <span className={cn(
+                          "font-black text-sm",
+                          getLiveSignalResult(signal).includes('Take Profit') || getLiveSignalResult(signal) === SignalResult.GAIN ? "text-green-500" :
+                          getLiveSignalResult(signal) === SignalResult.LOSS ? "text-brand-red" :
+                          getLiveSignalResult(signal) === 'Ativo' ? "text-blue-500" :
+                          "text-zinc-400"
+                        )}>
+                           {getDisplayPrice(signal, getLiveSignalResult(signal))}
+                        </span>
                       </motion.div>
                     </div>
                   </div>
@@ -198,28 +387,43 @@ export const SignalHistory: React.FC = () => {
                 </div>
 
                 {isExpanded && (
-                  <div className="p-4 border-t border-white/5 bg-black/20 grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-zinc-300">
-                    <div className="space-y-4">
-                      {signal.justification && (
-                        <div>
-                          <h4 className="text-[10px] text-zinc-500 font-black uppercase mb-1">Justificativa</h4>
-                          <p className="italic">{signal.justification}</p>
-                        </div>
-                      )}
-                      {signal.analiseGeral && (
-                        <div>
-                          <h4 className="text-[10px] text-zinc-500 font-black uppercase mb-1">Análise Geral</h4>
-                          <p>{signal.analiseGeral}</p>
-                        </div>
-                      )}
+                  <div className="p-4 border-t border-white/5 bg-black/20 flex flex-col gap-6 text-sm text-zinc-300">
+                    <div className="w-full">
+                      <TradingChart signal={signal} />
                     </div>
-                    <div className="space-y-4">
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-4">
+                        <RiskCalculator signal={signal} />
+                        
+                        {signal.justification && (
+                          <div>
+                            <h4 className="text-[10px] text-zinc-500 font-black uppercase mb-1">Justificativa</h4>
+                            <p className="italic">{signal.justification}</p>
+                          </div>
+                        )}
+                        {signal.analiseGeral && (
+                          <div>
+                            <h4 className="text-[10px] text-zinc-500 font-black uppercase mb-1">Análise Geral</h4>
+                            <p>{signal.analiseGeral}</p>
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-4">
                       {signal.estrutura && (
                         <div>
                           <h4 className="text-[10px] text-zinc-500 font-black uppercase mb-1">Estrutura de Mercado</h4>
                           <p>{signal.estrutura}</p>
                         </div>
                       )}
+                      
+                      {(signal as any).multiTimeFrameAnalysis && (
+                        <div>
+                          <h4 className="text-[10px] text-blue-500 font-black uppercase mb-1">Multi Time Frame Analysis</h4>
+                          <p>{(signal as any).multiTimeFrameAnalysis}</p>
+                        </div>
+                      )}
+
                       {signal.tecnica && (
                         <div>
                           <h4 className="text-[10px] text-zinc-500 font-black uppercase mb-1">Análise Técnica</h4>
@@ -232,7 +436,22 @@ export const SignalHistory: React.FC = () => {
                           <p>{signal.fundamental}</p>
                         </div>
                       )}
+
+                      {(signal as any).winrateLearning && (
+                        <div>
+                          <h4 className="text-[10px] text-purple-500 font-black uppercase mb-1">Winrate Learning AI</h4>
+                          <p>{(signal as any).winrateLearning}</p>
+                        </div>
+                      )}
+
+                      {(signal as any).trailingStop && (
+                        <div>
+                          <h4 className="text-[10px] text-orange-500 font-black uppercase mb-1">Trailing Stop AI</h4>
+                          <p>{(signal as any).trailingStop}</p>
+                        </div>
+                      )}
                     </div>
+                  </div>
                   </div>
                 )}
               </div>

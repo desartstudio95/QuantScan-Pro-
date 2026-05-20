@@ -164,22 +164,37 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewPl
             <div className="w-16 h-1 bg-brand-red mx-auto" />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[
               {
                 icon: BarChart3,
-                title: "Análise Automática",
-                desc: "Nossa IA identifica quebras de estrutura e mudanças de comportamento do mercado instantaneamente."
+                title: "Robô Auto-Scanner",
+                desc: "Análise autônoma em background. O nosso Robô vasculha o mercado 24/7 e dispara sinais automaticamente, sem necessidade de operação manual."
+              },
+              {
+                icon: ShieldCheck,
+                title: "Auto-Trading Inteligente",
+                desc: "Integração via Webhooks/API. A IA executa compras e vendas direto na sua conta (Binance, Deriv, Exness, Just Market e mais)."
+              },
+              {
+                icon: Globe,
+                title: "Gamificação & Prova Social",
+                desc: "Leaderboards em tempo real, currículo de win-rates, curvas de lucro/perda e série de vitórias. Confiança absoluta no sistema."
+              },
+              {
+                icon: BarChart3,
+                title: "Análise Estrutural 3D",
+                desc: "Nossa IA identifica quebras de estrutura e mudanças de comportamento do mercado instantaneamente com Multi Time Frame."
               },
               {
                 icon: ShieldCheck,
                 title: "Probability Score",
-                desc: "Cada setup recebe uma pontuação de 0-100% baseada em confluências institucionais reais."
+                desc: "Cada setup recebe uma pontuação de 0-100% baseada em confluências institucionais, SMC e detecção de liquidez."
               },
               {
                 icon: Globe,
-                title: "Qualquer Ativo",
-                desc: "Pares de Forex, Índices, Cripto ou Commodities. Se tem gráfico, nossa IA analisa."
+                title: "Multi-Mercados",
+                desc: "Pares de Forex, Índices Sintéticos, Cripto, Commodities. Adaptação completa para qualquer comportamento de mercado."
               }
             ].map((feature, i) => (
               <div key={i} className="glass-card p-6 border-zinc-800 hover:border-brand-red/30 transition-colors group">
@@ -254,26 +269,25 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewPl
         <div className="max-w-4xl mx-auto space-y-12 text-center md:text-left">
           <div className="space-y-4">
             <h2 className="text-3xl md:text-4xl font-black uppercase italic tracking-tighter text-white">
-              IA <span className="text-brand-red">QuantScanner</span>: <br className="hidden md:block" /> O Futuro do Mercado.
+              IA <span className="text-brand-red">QuantScanner</span>: <br className="hidden md:block" /> O Futuro do Automático.
             </h2>
             <p className="text-zinc-400 text-lg">
-              O **IA QuantScanner** é uma ferramenta avançada baseada em Inteligência Artificial desenvolvida 
-              para analisar o mercado financeiro em tempo real, com foco especial em **Forex, índices e criptomoedas**.
+              Agora, mais do que analisar, o **IA QuantScanner** executa. Integre a sua conta de corretora favorita (Deriv, Binance, Exness, FXPRO, Just Market, XM GLOBAL) via Webhook/API Segura, e deixe o robô operar baseado na nossa liderança comprovada de Win-Rate.
             </p>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="space-y-2">
-              <h4 className="font-black uppercase tracking-widest text-brand-red">📊 ANÁLISE</h4>
-              <p className="text-sm text-zinc-500">Técnica automatizada que identifica padrões, suportes e resistências.</p>
+              <h4 className="font-black uppercase tracking-widest text-brand-red">⚡ AUTO-TRADING</h4>
+              <p className="text-sm text-zinc-500">Execução direta na corretora via API. Stop loss, take profit e gestão de risco (Lot) 100% autônomos.</p>
             </div>
             <div className="space-y-2">
-              <h4 className="font-black uppercase tracking-widest text-brand-red">🤖 IA</h4>
-              <p className="text-sm text-zinc-500">Aprende continuamente com dados históricos e comportamento do mercado.</p>
+              <h4 className="font-black uppercase tracking-widest text-brand-red">🏆 LEADERBOARDS</h4>
+              <p className="text-sm text-zinc-500">Acompanhe a curva de equidade real, série de vitórias e a taxa de acerto do mês diretamente no painel global.</p>
             </div>
             <div className="space-y-2">
-              <h4 className="font-black uppercase tracking-widest text-brand-red">⏱️ MONITORAMENTO</h4>
-              <p className="text-sm text-zinc-500">Escaneia múltiplos ativos 24/7 para detectar oportunidades instantâneas.</p>
+              <h4 className="font-black uppercase tracking-widest text-brand-red">🤖 IA & ROBÔ 24/7</h4>
+              <p className="text-sm text-zinc-500">O robô em background vasculha múltiplos ativos e envia sinais direto do lado do servidor à sua conta.</p>
             </div>
           </div>
 

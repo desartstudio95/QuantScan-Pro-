@@ -14,11 +14,19 @@ import { LandingPage } from './components/LandingPage';
 import { ProfileView } from './components/ProfileView';
 import { NotificationManager } from './components/NotificationManager';
 import { MaintenancePage } from './components/MaintenancePage';
+import { LiveMarketTicker } from './components/LiveMarketTicker';
 import { TrendingUp, ShieldAlert, Ghost, Mail, Lock, UserPlus, LogIn, Loader2, ArrowLeft, User as UserIcon, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, signOut, sendEmailVerification, sendPasswordResetEmail, User, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'firebase/auth';
 import { doc, setDoc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from './lib/firebase';
+import { cn } from './lib/utils';
+
+declare global {
+  interface Window {
+    OneSignalDeferred: any[];
+  }
+}
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -59,6 +67,18 @@ export default function App() {
     }, (error) => {
       console.warn("Failed to listen to settings:", error);
     });
+
+    // Initialize OneSignal via window object
+    if (import.meta.env.VITE_ONESIGNAL_APP_ID) {
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      window.OneSignalDeferred.push(async function(OneSignal: any) {
+        await OneSignal.init({
+          appId: import.meta.env.VITE_ONESIGNAL_APP_ID,
+          allowLocalhostAsSecureOrigin: true,
+        });
+        OneSignal.Slidedown.promptPush();
+      });
+    }
 
     return () => unsubSettings();
   }, []);
@@ -583,7 +603,10 @@ export default function App() {
         <img 
           src="https://i.ibb.co/YFQNMsjX/7eaead9a-0cd4-48d7-8f10-b32d98256e6f.png" 
           alt="App Background" 
-          className="w-full h-full object-cover opacity-80"
+          className={cn(
+            "w-full h-full object-cover transition-opacity duration-500",
+            activeTab === 'history' ? "opacity-85" : "opacity-80"
+          )}
         />
         <div className="absolute inset-0 bg-gradient-to-b from-brand-dark/40 via-brand-dark/20 to-brand-dark" />
       </div>
@@ -591,6 +614,8 @@ export default function App() {
       <Navbar activeTab={activeTab} setActiveTab={setActiveTab} isAdmin={isAdmin} user={user} />
       
       <main className="flex-1 overflow-y-auto overflow-x-hidden relative z-10 flex flex-col">
+        <LiveMarketTicker />
+        
         {/* Desktop Header */}
         <header className="hidden md:flex items-center justify-between p-8 pb-4 max-w-6xl w-full mx-auto">
           <div className="space-y-1">

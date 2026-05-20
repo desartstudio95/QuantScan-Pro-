@@ -6,7 +6,7 @@ import {
   BarChart, Bar, Cell,
   LineChart, Line, Legend
 } from 'recharts';
-import { TrendingUp, Award, Target, Activity } from 'lucide-react';
+import { TrendingUp, Award, Target, Activity, Flame, Calendar, Trophy } from 'lucide-react';
 import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 
@@ -54,6 +54,29 @@ export const DashboardStats: React.FC = () => {
   
   const winRate = completedSignals > 0 ? (gains / completedSignals) * 100 : 0;
   const profitLossRatio = losses > 0 ? (gains / losses).toFixed(2) : (gains > 0 ? '∞' : '0');
+
+  // Calculates Monthly Win Rate
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+  const monthlySignals = signals.filter(s => {
+    const d = new Date(s.timestamp);
+    return d.getMonth() === currentMonth && d.getFullYear() === currentYear && (s.result === SignalResult.GAIN || s.result === SignalResult.LOSS);
+  });
+  const monthlyGains = monthlySignals.filter(s => s.result === SignalResult.GAIN).length;
+  const monthlyWinRate = monthlySignals.length > 0 ? (monthlyGains / monthlySignals.length) * 100 : 0;
+
+  // Calculates Consecutive Win Streak
+  let currentStreak = 0;
+  let maxStreak = 0;
+  const sortedByTime = [...signals].sort((a, b) => a.timestamp - b.timestamp);
+  sortedByTime.forEach(s => {
+     if (s.result === SignalResult.GAIN || s.result?.includes('Take Profit')) {
+        currentStreak++;
+        if (currentStreak > maxStreak) maxStreak = currentStreak;
+     } else if (s.result === SignalResult.LOSS) {
+        currentStreak = 0;
+     }
+  });
 
   const pairStats = signals.reduce((acc: any[], signal) => {
     const existing = acc.find(i => i.name === signal.pair);
@@ -113,10 +136,10 @@ export const DashboardStats: React.FC = () => {
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <header>
         <h1 className="text-xl font-black italic tracking-tighter text-white flex items-center gap-3 uppercase">
-          <Activity size={20} className="text-brand-red" />
-          Estatísticas da IA
+          <Trophy size={20} className="text-brand-red" />
+          Leaderboard & Performance Global
         </h1>
-        <p className="text-zinc-500 mt-1 text-[10px] font-medium leading-none">Acompanhamento de performance e aprendizado institucional.</p>
+        <p className="text-zinc-500 mt-1 text-[10px] font-medium leading-none">Acompanhamento e transparência audível dos resultados do sistema.</p>
       </header>
 
       <motion.div 
@@ -125,13 +148,15 @@ export const DashboardStats: React.FC = () => {
         variants={{
           visible: { transition: { staggerChildren: 0.1 } }
         }}
-        className="grid grid-cols-2 md:grid-cols-4 gap-4"
+        className="grid grid-cols-2 lg:grid-cols-6 gap-4"
       >
         {[
           { label: 'Total Sinais', value: totalSignals, icon: Activity },
           { label: 'Taxa de Acerto', value: `${winRate.toFixed(1)}%`, icon: Award },
+          { label: 'Win Rate Mensal', value: `${monthlyWinRate.toFixed(1)}%`, icon: Calendar },
+          { label: 'Série de Vitórias', value: `${maxStreak} Seguida${maxStreak !== 1 ? 's' : ''}`, icon: Flame },
           { label: 'Ratio Win/Loss', value: profitLossRatio, icon: Target },
-          { label: 'Melhor Ativo', value: bestAsset, icon: TrendingUp, positive: true },
+          { label: 'Melhor Ativo', value: bestAsset, icon: TrendingUp },
         ].map((stat, i) => (
           <motion.div 
             key={i} 
@@ -197,7 +222,7 @@ export const DashboardStats: React.FC = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-2 glass-card p-5 min-h-[350px] flex flex-col">
-          <h3 className="font-black italic uppercase tracking-wider text-xs mb-6 text-zinc-400">Curva de Equidade Estimada</h3>
+          <h3 className="font-black italic uppercase tracking-wider text-xs mb-6 text-zinc-400">Gráfico de Lucro/Perda Acumulada</h3>
           <div className="flex-1 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartData}>

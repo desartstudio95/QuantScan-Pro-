@@ -1,14 +1,17 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, X, ShieldCheck, Target, TrendingUp, AlertTriangle, Loader2, Zap, BrainCircuit, Camera, ScanLine, Bell, BellRing } from 'lucide-react';
+import { Upload, X, ShieldCheck, Target, TrendingUp, AlertTriangle, Loader2, Zap, BrainCircuit, Camera, ScanLine, Bell, BellRing, Activity, LineChart, Crosshair } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { analyzeForexChart } from '../services/geminiService';
 import { AnalysisResponse, SignalResult, SignalType } from '../types';
 import { cn } from '../lib/utils';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import axios from 'axios';
 import { compressImage, cleanupStorage } from '../lib/imageUtils';
 import { storage, auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, Timestamp } from 'firebase/firestore';
+import { fetchCurrentPrice } from '../services/marketData';
+import { sendTelegramAlert } from '../services/notifications';
 
 export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void }> = ({ userData, onGoToHistory }) => {
   const [file, setFile] = useState<File | null>(null);
@@ -19,7 +22,8 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
   const [mode, setMode] = useState<'Técnico' | 'Fundamental' | 'Híbrido'>('Híbrido');
   const [usageInfo, setUsageInfo] = useState<{ used: number, limit: number }>({ used: 0, limit: userData?.analysisLimit ?? 8 });
   const [alerts, setAlerts] = useState<{type: string, price: string, targetValue: number}[]>([]);
-  const [mockPrice, setMockPrice] = useState<number | null>(null);
+  const [customAlertPrices, setCustomAlertPrices] = useState<Record<string, string>>({});
+  const [marketPrice, setMarketPrice] = useState<number | null>(null);
 
   const now = Date.now();
   const isLifetime = userData?.plan === 'lifetime';
@@ -30,65 +34,78 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
 
   useEffect(() => {
     if (result && result.entry) {
-      const entryNum = parseFloat(result.entry.replace(/[^0-9.]/g, ''));
-      if (!isNaN(entryNum)) setMockPrice(entryNum);
       if ('Notification' in window && Notification.permission !== 'granted') {
         Notification.requestPermission();
       }
     } else {
-      setMockPrice(null);
+      setMarketPrice(null);
       setAlerts([]);
     }
   }, [result]);
 
   useEffect(() => {
-    if (mockPrice === null || alerts.length === 0 || !result) return;
+    if (!result || !result.pair) return;
     
-    const interval = setInterval(() => {
-      setMockPrice(prevPrice => {
-        if (prevPrice === null) return null;
-        // Simulando variação realista (0.01% - 0.05%)
-        const movePercent = (Math.random() - 0.5) * 0.001; 
-        let nextPrice = prevPrice * (1 + movePercent);
-        
-        // Vamos forçar o preço a ir em direção a um dos alertas para que a feature possa ser testada
-        if (Math.random() > 0.4 && alerts.length > 0) {
-           const target = alerts[Math.floor(Math.random() * alerts.length)].targetValue;
-           if (target > nextPrice) {
-               nextPrice += target * 0.0002;
-           } else {
-               nextPrice -= target * 0.0002;
-           }
-        }
+    let isMounted = true;
+    let currentPrice = marketPrice;
 
+    const fetchPrice = async () => {
+      try {
+        const price = await fetchCurrentPrice(result.pair);
+        if (price !== null && isMounted) {
+          setMarketPrice(price);
+          currentPrice = price;
+          checkAlerts(price);
+        }
+      } catch (e) {
+        console.error("Error fetching market price", e);
+      }
+    };
+
+    const checkAlerts = (price: number) => {
         let triggeredIndex = -1;
         const triggeredAlert = alerts.find((alert, index) => {
-          const isTriggered = Math.abs(nextPrice - alert.targetValue) < (alert.targetValue * 0.0002) || 
-            (prevPrice < alert.targetValue && nextPrice >= alert.targetValue) ||
-            (prevPrice > alert.targetValue && nextPrice <= alert.targetValue);
+          // Check if price crossed the target since last check
+          // Fallback condition if currentPrice is null is just exact match but that's rare, 
+          // usually we just check within a small margin
+          const isTriggered = Math.abs(price - alert.targetValue) < (alert.targetValue * 0.0002) || 
+            (currentPrice && currentPrice < alert.targetValue && price >= alert.targetValue) ||
+            (currentPrice && currentPrice > alert.targetValue && price <= alert.targetValue);
+            
           if (isTriggered) triggeredIndex = index;
           return isTriggered;
         });
 
         if (triggeredAlert && triggeredIndex !== -1) {
+          const msg = `🚨 Alerta QuantScan: O ativo ${result.pair} atingiu seu alvo de ${triggeredAlert.type} (${triggeredAlert.price}).`;
+          
+          try {
+            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+            audio.play().catch(e => console.error("Audio play failed:", e));
+          } catch(e) {
+            console.error(e)
+          }
+
           if ('Notification' in window && Notification.permission === 'granted') {
              new Notification('🚨 Alerta QuantScan', {
-               body: `O preço do ativo ${result.pair} atingiu seu alvo de ${triggeredAlert.type} (${triggeredAlert.price}).`,
+               body: msg,
                icon: 'https://i.ibb.co/9BwbV3M/FXBROS-WORLD-3.png'
              });
           } else {
-             window.alert(`🚨 Alerta QuantScan: O preço do ativo ${result.pair} atingiu seu alvo de ${triggeredAlert.type} (${triggeredAlert.price}).`);
+             window.alert(msg);
           }
-          
           setAlerts(prev => prev.filter((_, i) => i !== triggeredIndex));
         }
+    };
 
-        return nextPrice;
-      });
-    }, 2000);
+    fetchPrice();
+    const interval = setInterval(fetchPrice, 60000); // Poll every minute
 
-    return () => clearInterval(interval);
-  }, [alerts, mockPrice, result]);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [result, alerts]);
 
   useEffect(() => {
     const fetchUsage = async () => {
@@ -173,6 +190,15 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
           handleFirestoreError(err, OperationType.CREATE, 'signals');
           throw err;
         });
+
+        if (sanitizedAnalysis.decision !== 'WAIT') {
+          axios.post('/api/onesignal/notify', {
+            title: 'Novo Sinal QuantScan IA 🚨',
+            message: `${sanitizedAnalysis.pair} - ${sanitizedAnalysis.decision} (${sanitizedAnalysis.signalType || 'Scalping'}). Confiança: ${sanitizedAnalysis.score}%`
+          }).catch(console.error);
+          
+          sendTelegramAlert(sanitizedAnalysis).catch(console.error);
+        }
       }
 
     } catch (err: any) {
@@ -217,6 +243,10 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
     setError(null);
     setMockPrice(null);
     setAlerts([]);
+  };
+
+  const handleCustomAlertPriceChange = (type: string, value: string) => {
+    setCustomAlertPrices(prev => ({ ...prev, [type]: value }));
   };
 
   const toggleAlert = (type: string, priceStr: string) => {
@@ -517,10 +547,10 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
                 <span className="text-[8px] uppercase font-black tracking-widest opacity-60">Decisão QuantScan</span>
               </div>
 
-              {mockPrice !== null && (
+              {marketPrice !== null && (
                 <div className="flex flex-col items-center justify-center p-2 mb-2 bg-black/40 rounded border border-white/5">
-                  <span className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold">Preço de Mercado (Simulado)</span>
-                  <span className="font-mono text-lg font-black text-white">{mockPrice.toFixed(5)}</span>
+                  <span className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold">Preço de Mercado</span>
+                  <span className="font-mono text-lg font-black text-white">{marketPrice.toFixed(5)}</span>
                 </div>
               )}
 
@@ -531,9 +561,13 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
                     <span className="text-[9px] font-black text-zinc-500 uppercase">ENTRADA</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="font-mono font-black text-sm">{result.entry}</span>
+                    <input 
+                      className="font-mono font-black text-sm bg-transparent border-b border-dashed border-white/20 text-right w-24 outline-none focus:border-white transition-colors text-white"
+                      value={customAlertPrices['Entrada'] ?? result.entry}
+                      onChange={(e) => handleCustomAlertPriceChange('Entrada', e.target.value)}
+                    />
                     <button 
-                      onClick={() => toggleAlert('Entrada', result.entry)}
+                      onClick={() => toggleAlert('Entrada', customAlertPrices['Entrada'] ?? result.entry)}
                       className={cn(
                         "p-1.5 rounded transition-colors", 
                         alerts.some(a => a.type === 'Entrada') ? "text-yellow-500 bg-yellow-500/20" : "text-zinc-500 hover:text-yellow-500 hover:bg-white/5"
@@ -549,9 +583,13 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
                     <span className="text-[9px] font-black text-zinc-500 uppercase">STOP LOSS</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="font-mono font-black text-sm text-brand-red">{result.stopLoss}</span>
+                    <input 
+                      className="font-mono font-black text-sm bg-transparent border-b border-dashed border-brand-red/30 text-right w-24 outline-none focus:border-brand-red transition-colors text-brand-red"
+                      value={customAlertPrices['Stop Loss'] ?? result.stopLoss}
+                      onChange={(e) => handleCustomAlertPriceChange('Stop Loss', e.target.value)}
+                    />
                     <button 
-                      onClick={() => toggleAlert('Stop Loss', result.stopLoss)}
+                      onClick={() => toggleAlert('Stop Loss', customAlertPrices['Stop Loss'] ?? result.stopLoss)}
                       className={cn(
                         "p-1.5 rounded transition-colors", 
                         alerts.some(a => a.type === 'Stop Loss') ? "text-yellow-500 bg-yellow-500/20" : "text-zinc-500 hover:text-yellow-500 hover:bg-white/5"
@@ -567,9 +605,13 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
                     <span className="text-[9px] font-black text-zinc-500 uppercase">TAKE PROFIT 1</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="font-mono font-black text-sm text-green-500">{result.takeProfit}</span>
+                    <input 
+                      className="font-mono font-black text-sm bg-transparent border-b border-dashed border-green-500/30 text-right w-24 outline-none focus:border-green-500 transition-colors text-green-500"
+                      value={customAlertPrices['Take Profit 1'] ?? result.takeProfit}
+                      onChange={(e) => handleCustomAlertPriceChange('Take Profit 1', e.target.value)}
+                    />
                     <button 
-                      onClick={() => toggleAlert('Take Profit 1', result.takeProfit)}
+                      onClick={() => toggleAlert('Take Profit 1', customAlertPrices['Take Profit 1'] ?? result.takeProfit)}
                       className={cn(
                         "p-1.5 rounded transition-colors", 
                         alerts.some(a => a.type === 'Take Profit 1') ? "text-yellow-500 bg-yellow-500/20" : "text-zinc-500 hover:text-yellow-500 hover:bg-white/5"
@@ -587,9 +629,13 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
                       <span className="text-[9px] font-black text-zinc-500 uppercase">TAKE PROFIT 2</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="font-mono font-black text-sm text-green-500">{result.takeProfit2}</span>
+                      <input 
+                        className="font-mono font-black text-sm bg-transparent border-b border-dashed border-green-500/30 text-right w-24 outline-none focus:border-green-500 transition-colors text-green-500"
+                        value={customAlertPrices['Take Profit 2'] ?? result.takeProfit2}
+                        onChange={(e) => handleCustomAlertPriceChange('Take Profit 2', e.target.value)}
+                      />
                       <button 
-                        onClick={() => toggleAlert('Take Profit 2', result.takeProfit2!)}
+                        onClick={() => toggleAlert('Take Profit 2', customAlertPrices['Take Profit 2'] ?? result.takeProfit2!)}
                         className={cn(
                           "p-1.5 rounded transition-colors", 
                           alerts.some(a => a.type === 'Take Profit 2') ? "text-yellow-500 bg-yellow-500/20" : "text-zinc-500 hover:text-yellow-500 hover:bg-white/5"
@@ -608,9 +654,13 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
                       <span className="text-[9px] font-black text-zinc-500 uppercase">TAKE PROFIT 3</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="font-mono font-black text-sm text-green-500">{result.takeProfit3}</span>
+                      <input 
+                        className="font-mono font-black text-sm bg-transparent border-b border-dashed border-green-500/30 text-right w-24 outline-none focus:border-green-500 transition-colors text-green-500"
+                        value={customAlertPrices['Take Profit 3'] ?? result.takeProfit3}
+                        onChange={(e) => handleCustomAlertPriceChange('Take Profit 3', e.target.value)}
+                      />
                       <button 
-                        onClick={() => toggleAlert('Take Profit 3', result.takeProfit3!)}
+                        onClick={() => toggleAlert('Take Profit 3', customAlertPrices['Take Profit 3'] ?? result.takeProfit3!)}
                         className={cn(
                           "p-1.5 rounded transition-colors", 
                           alerts.some(a => a.type === 'Take Profit 3') ? "text-yellow-500 bg-yellow-500/20" : "text-zinc-500 hover:text-yellow-500 hover:bg-white/5"
@@ -625,7 +675,18 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+            {result.multiTimeFrameAnalysis && (
+              <div className="glass-card space-y-4 col-span-full">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-500 flex items-center gap-2">
+                  <Activity size={14} /> MULTI TIME FRAME ANALYSIS
+                </h4>
+                <p className="text-xs text-zinc-300 leading-relaxed font-medium">
+                  {result.multiTimeFrameAnalysis}
+                </p>
+              </div>
+            )}
+            
             <div className="glass-card space-y-4">
               <h4 className="text-[10px] font-black uppercase tracking-widest text-brand-red flex items-center gap-2">
                 <BrainCircuit size={14} /> ANÁLISE TÉCNICA (SMC + LIQ)
@@ -634,6 +695,7 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
                 {result.tecnica}
               </p>
             </div>
+            
             <div className="glass-card space-y-4">
               <h4 className="text-[10px] font-black uppercase tracking-widest text-green-500 flex items-center gap-2">
                 <TrendingUp size={14} /> ANÁLISE FUNDAMENTAL
@@ -642,6 +704,29 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
                 {result.fundamental}
               </p>
             </div>
+
+            {result.winrateLearning && (
+              <div className="glass-card space-y-4">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-purple-500 flex items-center gap-2">
+                  <LineChart size={14} /> WINRATE LEARNING AI
+                </h4>
+                <p className="text-xs text-zinc-300 leading-relaxed font-medium">
+                  {result.winrateLearning}
+                </p>
+              </div>
+            )}
+
+            {result.trailingStop && (
+              <div className="glass-card space-y-4">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-orange-500 flex items-center gap-2">
+                  <Crosshair size={14} /> TRAILING STOP AI
+                </h4>
+                <p className="text-xs text-zinc-300 leading-relaxed font-medium">
+                  {result.trailingStop}
+                </p>
+              </div>
+            )}
+
              <div className="glass-card space-y-4 col-span-full">
               <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400 flex items-center gap-2">
                 <Target size={14} /> ANALISE GERAL

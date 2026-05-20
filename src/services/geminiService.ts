@@ -58,6 +58,8 @@ ESTRATÉGIAS OBRIGATÓRIAS
 3. MOMENTUM + ENTRY TIMING: força da tendência, volume, velocidade do preço.
 4. MARKET STRUCTURE AI: tendência bullish/bearish, ranging, expansão.
 5. FUNDAMENTAL ANALYSIS AI: notícias, juros, impacto macroeconômico.
+6. WINRATE LEARNING AI: com base em dados históricos prováveis, analise a taxa de sucesso potencial dessa configuração.
+7. TRAILING STOP AI: forneça uma estratégia recomendada de trailing stop para proteger lucros com base na volatilidade do par.
 
 ==================================================
 CAMADA DE CONFIRMAÇÃO E IA (APENAS FILTRO)
@@ -79,6 +81,9 @@ A IA deve fornecer no JSON estrito todas as chaves abaixo:
 - Risco/Retorno: (ex: 1:3) (chave riskReward)
 - Duração Estimada: (ex: 3 a 10 dias) (chave duration)
 - Entrada, Stop Loss, Take Profit 1, Take Profit 2, e Take Profit 3.
+- Trailing Stop: Regra para mover o stop (chave trailingStop)
+- Winrate Learning: Justificativa rápida do winrate provável baseado na estrutura (chave winrateLearning)
+- Multi Time Frame Analysis: Resumo da confluência entre tempos gráficos maiores e menores (chave multiTimeFrameAnalysis)
 
 Exemplo visual de leitura interna:
 CONFIDENCE SCORE: 91%
@@ -89,10 +94,12 @@ FORMATO DE SAÍDA (Obrigatório em JSON):
 {
   "mode": "Técnico" | "Fundamental" | "Híbrido",
   "analiseGeral": "Análise multi timeframe macro e micro",
+  "pair": "EUR/USD",
   "timeframe": "Timeframes analisados (ex: H4/M15)",
   "estrutura": "Detalhes estruturais",
   "tecnica": "SMC + Confirmações",
   "fundamental": "Resumo",
+  "multiTimeFrameAnalysis": "Resumo da confluência entre tempos gráficos maiores e menores",
   "decision": "BUY" | "SELL" | "WAIT",
   "signalType": "Scalping" | "Intraday" | "Swing" | "Long Term",
   "riskLevel": "LOW" | "MEDIUM" | "HIGH",
@@ -101,12 +108,13 @@ FORMATO DE SAÍDA (Obrigatório em JSON):
   "takeProfit": "1.09200",
   "takeProfit2": "1.10100",
   "takeProfit3": "1.11500",
+  "trailingStop": "Mover SL para entrada após atingir TP1, step de 5 pips",
+  "winrateLearning": "Contexto do Winrate Learning AI, taxa de assertividade desse padrão",
   "riskReward": "1:3",
   "duration": "3 a 10 dias",
   "score": 91,
   "justification": "Razão principal",
-  "alerta": "Cuidados",
-  "pair": "EUR/USD"
+  "alerta": "Cuidados"
 }
 `;
 
@@ -114,7 +122,8 @@ FORMATO DE SAÍDA (Obrigatório em JSON):
     Analise este gráfico sob a óptica do QuantScan IA. 
     ${preferredMode ? `Use estritamente o modo de análise: ${preferredMode}.` : 'Detecte o melhor modo automaticamente.'}
     ${userNotes ? `Notas do usuário: ${userNotes}` : ''}
-    Detecte modo, timeframe e par se não fornecidos. Retorne JSON estrito.
+    Detecte modo, timeframe e par se não fornecidos. Retorne JSON estrito. 
+    IMPORTANTE: O campo 'pair' DEVE SEMPRE usar a formatação padrão internacional para APIs de mercado (ex: XAU/USD para Ouro, GBP/JPY, BTC/USD, AAPL para ações). Não escreva 'Gold', escreva 'XAU/USD'.
   `;
 
   const response = await ai.models.generateContent({
@@ -140,6 +149,7 @@ FORMATO DE SAÍDA (Obrigatório em JSON):
           estrutura: { type: Type.STRING },
           tecnica: { type: Type.STRING },
           fundamental: { type: Type.STRING },
+          multiTimeFrameAnalysis: { type: Type.STRING },
           decision: { type: Type.STRING, enum: ["BUY", "SELL", "WAIT"] },
           signalType: { type: Type.STRING },
           riskLevel: { type: Type.STRING },
@@ -148,13 +158,15 @@ FORMATO DE SAÍDA (Obrigatório em JSON):
           takeProfit: { type: Type.STRING },
           takeProfit2: { type: Type.STRING },
           takeProfit3: { type: Type.STRING },
+          trailingStop: { type: Type.STRING },
+          winrateLearning: { type: Type.STRING },
           riskReward: { type: Type.STRING },
           duration: { type: Type.STRING },
           score: { type: Type.NUMBER },
           justification: { type: Type.STRING },
           alerta: { type: Type.STRING }
         },
-        required: ["mode", "analiseGeral", "pair", "timeframe", "estrutura", "tecnica", "fundamental", "decision", "signalType", "riskLevel", "entry", "stopLoss", "takeProfit", "takeProfit2", "takeProfit3", "riskReward", "duration", "score", "justification", "alerta"]
+        required: ["mode", "analiseGeral", "pair", "timeframe", "estrutura", "tecnica", "fundamental", "multiTimeFrameAnalysis", "decision", "signalType", "riskLevel", "entry", "stopLoss", "takeProfit", "takeProfit2", "takeProfit3", "trailingStop", "winrateLearning", "riskReward", "duration", "score", "justification", "alerta"]
       }
     }
   });

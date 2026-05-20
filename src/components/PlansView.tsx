@@ -246,12 +246,13 @@ export const PlansView: React.FC<PlansViewProps> = ({ isUnauthenticated, onGetSt
             "Apenas Curto Prazo (Scalping)",
             "Score Básico de Probabilidade",
             "Análise SMC (Smart Money)",
-            "Sem histórico completo"
+            "Sem histórico completo",
+            "Auto-Trading: Indisponível"
           ]}
         />
         <PlanCard 
           title="Plano Begin"
-          price="1.700 MT"
+          price="2.000 MT"
           description="Para quem está começando e quer testar a potência."
           buttonText="Assinar Agora"
           onClick={handleAction}
@@ -260,12 +261,13 @@ export const PlansView: React.FC<PlansViewProps> = ({ isUnauthenticated, onGetSt
             "Scalping & Intraday",
             "Score Básico de Probabilidade",
             "Risco/Retorno e Stop Loss",
-            "Suporte via comunidade"
+            "Suporte via comunidade",
+            "Auto-Trading: Indisponível"
           ]}
         />
         <PlanCard 
           title="Plano Pro"
-          price="3.500 MT"
+          price="4.500 MT"
           description="O plano mais popular para traders consistentes."
           buttonText="Assinar Agora"
           highlight={true}
@@ -275,20 +277,20 @@ export const PlansView: React.FC<PlansViewProps> = ({ isUnauthenticated, onGetSt
             "15 análises por dia",
             "Análises de Longo Prazo",
             "Multi Time Frame (MTF) Integrado",
-            "Detecção Extrema de Liquidez",
+            "Auto-Trading (Deriv, Binance, etc)",
             "Filtro Anti-Fake Breakout (IA)",
             "Histórico completo de sinais"
           ]}
         />
         <PlanCard 
           title="Plano Elite"
-          price="5.700 MT"
-          description="Acesso total às ferramentas institucionais."
+          price="7.500 MT"
+          description="Acesso total às ferramentas institucionais e Auto-Trading VPS."
           buttonText="Ser Elite"
           onClick={handleAction}
           features={[
             "30 análises por dia",
-            "Tudo do Plano Pro",
+            "Auto-Trading + Gestão de Risco",
             "SMC Avançado + VWAP & CVD",
             "Análise Fundamental + Impacto",
             "Machine Learning Avançado",
@@ -297,7 +299,7 @@ export const PlansView: React.FC<PlansViewProps> = ({ isUnauthenticated, onGetSt
         />
         <PlanCard 
           title="Plano Lifetime"
-          price="10.000 MT"
+          price="15.000 MT"
           description="O acesso definitivo para toda a vida."
           buttonText="Assinar Vitalício"
           highlight={true}
@@ -305,7 +307,7 @@ export const PlansView: React.FC<PlansViewProps> = ({ isUnauthenticated, onGetSt
           onClick={handleAction}
           features={[
             "Análises Ilimitadas",
-            "Tudo do Plano Elite",
+            "Tudo do Plano Elite com Auto-Trading",
             "Acesso vitalício (Sem mensalidade)",
             "Early access a novas features",
             "Cursos exclusivos QuantScan",

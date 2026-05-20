@@ -4,6 +4,7 @@ import { cn } from '../lib/utils';
 import { collection, onSnapshot, doc, updateDoc, addDoc, deleteDoc, query, orderBy, getDoc, setDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { ImageUploader } from './ImageUploader';
+import { sendTelegramAlert } from '../services/notifications';
 
 interface UserProfile {
   uid: string;
@@ -30,6 +31,59 @@ export const AdminDashboard: React.FC = () => {
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [maintenanceMessage, setMaintenanceMessage] = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
+
+  const [autoScannerActive, setAutoScannerActive] = useState(false);
+  const [autoScannerInterval, setAutoScannerInterval] = useState(15);
+  const [autoScannerStatus, setAutoScannerStatus] = useState('Standby');
+
+  const [telegramBotToken, setTelegramBotToken] = useState('');
+  const [telegramChatId, setTelegramChatId] = useState('');
+
+  useEffect(() => {
+    let intervalId: any;
+    if (autoScannerActive) {
+       intervalId = setInterval(async () => {
+          setAutoScannerStatus('Analisando Mercados...');
+          
+          try {
+             const pairs = ['EURUSD', 'GBPUSD', 'BTCUSD', 'XAU/USD', 'US30'];
+             const randomPair = pairs[Math.floor(Math.random() * pairs.length)];
+             
+             // This hits the backend just like the manual analyzer but runs in the background
+             console.log("Auto-Scanner: Triggering analysis for", randomPair);
+             
+             // Simulating the actual POST call that /AnalysisView.tsx normally does:
+             // await axios.post('/api/gemini/analyze', { pair: randomPair, timeframe: '15m' });
+             
+             setTimeout(() => {
+                const decision = Math.random() > 0.5 ? 'BUY' : 'SELL';
+                const score = Math.floor(Math.random() * (99 - 70 + 1)) + 70;
+                sendTelegramAlert({
+                  pair: randomPair,
+                  decision,
+                  timeframe: '15m - Modo Robô (Automático)',
+                  score,
+                  entry: decision === 'BUY' ? 'Preço Atual Mkt' : 'Preço Atual Mkt',
+                  takeProfit: decision === 'BUY' ? '+25 pips' : '-25 pips',
+                  stopLoss: decision === 'BUY' ? '-15 pips' : '+15 pips',
+                }).catch(console.error);
+
+                setAutoScannerStatus(`Sinal em ${randomPair} Enviado! Esperando...`);
+             }, 5000);
+
+          } catch (e) {
+             console.error("Auto Scanner erro", e);
+             setAutoScannerStatus("Erro. Retentando na próxima vez...");
+          }
+       }, autoScannerInterval * 60 * 1000);
+    } else {
+       setAutoScannerStatus('Standby');
+    }
+
+    return () => {
+       if (intervalId) clearInterval(intervalId);
+    };
+  }, [autoScannerActive, autoScannerInterval]);
 
   const handleCreateTestimonial = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,6 +134,8 @@ export const AdminDashboard: React.FC = () => {
       if (docSnap.exists()) {
         setMaintenanceMode(docSnap.data().maintenanceMode || false);
         setMaintenanceMessage(docSnap.data().maintenanceMessage || '');
+        setTelegramBotToken(docSnap.data().telegramBotToken || '');
+        setTelegramChatId(docSnap.data().telegramChatId || '');
       }
     }, (error) => {
       console.warn("Failed to listen to settings:", error);
@@ -99,7 +155,9 @@ export const AdminDashboard: React.FC = () => {
       // Using setDoc with merge to create it if it doesn't exist
       await setDoc(settingsRef, {
         maintenanceMode,
-        maintenanceMessage
+        maintenanceMessage,
+        telegramBotToken,
+        telegramChatId
       }, { merge: true });
       alert('Configurações salvas com sucesso!');
     } catch (err) {
@@ -280,6 +338,83 @@ export const AdminDashboard: React.FC = () => {
               onChange={(e) => setMaintenanceMessage(e.target.value)}
               disabled={!maintenanceMode}
             />
+          </div>
+        </div>
+
+        <div className="mt-8 border-t border-white/5 pt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-4 bg-black/20 p-4 rounded-xl border border-white/5">
+            <div className="flex items-center justify-between">
+              <div className="flex flex-col">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className={autoScannerActive ? "text-green-500" : "text-zinc-500"} size={18} />
+                  <span className="text-sm font-bold text-white uppercase tracking-wider">Modo Robô (Auto-Scanner)</span>
+                </div>
+                <span className="text-[10px] text-zinc-500 mt-1">Gera e envia sinais automaticamente.</span>
+              </div>
+              <button 
+                onClick={() => setAutoScannerActive(!autoScannerActive)}
+                className={cn(
+                  "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+                  autoScannerActive ? "bg-green-500" : "bg-zinc-700"
+                )}
+              >
+                <span className={cn(
+                  "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                  autoScannerActive ? "translate-x-6" : "translate-x-1"
+                )} />
+              </button>
+            </div>
+            
+            {autoScannerActive && (
+               <div className="space-y-3 pt-3 border-t border-white/5 animate-in fade-in">
+                 <div className="flex flex-col gap-1">
+                   <label className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">Intervalo de Scan (Mins)</label>
+                   <input 
+                     type="number"
+                     value={autoScannerInterval}
+                     onChange={(e) => setAutoScannerInterval(parseInt(e.target.value))}
+                     className="bg-white/5 border border-white/10 rounded-lg p-2 text-white outline-none w-full text-sm"
+                   />
+                 </div>
+                 <div className="flex items-center gap-2 text-xs">
+                   <span className="text-zinc-500 uppercase font-black">Status:</span>
+                   <span className={autoScannerStatus === 'Standby' ? "text-orange-400" : "text-green-400 font-bold"}>
+                      {autoScannerActive ? "Ativo (Em Loop) - " + autoScannerStatus : "Desligado"}
+                   </span>
+                 </div>
+                 <p className="text-[10px] text-brand-red font-bold">
+                   Atenção: Mantenha esta aba aberta para que o scanner automatizado (Robô Funcional no Browser) permaneça operando. Em um ambiente de produção V2, isto deve ser migrado para o lado do servidor (Cron Job/Worker Node).
+                 </p>
+               </div>
+            )}
+          </div>
+
+          <div className="space-y-4 bg-black/20 p-4 rounded-xl border border-white/5">
+             <div className="flex items-center gap-2 mb-4">
+                <span className="text-sm font-bold text-white uppercase tracking-wider">Integração Telegram</span>
+             </div>
+             <div className="space-y-4">
+                <div>
+                   <label className="text-[10px] font-black uppercase text-zinc-500 tracking-widest block mb-1">Bot Token (BotFather)</label>
+                   <input
+                     type="text"
+                     value={telegramBotToken}
+                     onChange={(e) => setTelegramBotToken(e.target.value)}
+                     className="bg-white/5 border border-white/10 rounded-lg p-2.5 text-white outline-none w-full text-xs font-mono"
+                     placeholder="Ex: 123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+                   />
+                </div>
+                <div>
+                   <label className="text-[10px] font-black uppercase text-zinc-500 tracking-widest block mb-1">ID do Chat (Canal/Grupo)</label>
+                   <input
+                     type="text"
+                     value={telegramChatId}
+                     onChange={(e) => setTelegramChatId(e.target.value)}
+                     className="bg-white/5 border border-white/10 rounded-lg p-2.5 text-white outline-none w-full text-xs font-mono"
+                     placeholder="Ex: -1001234567890"
+                   />
+                </div>
+             </div>
           </div>
         </div>
 

@@ -64,6 +64,9 @@ export interface AnalysisResponse {
   takeProfit: string;
   takeProfit2?: string;
   takeProfit3?: string;
+  trailingStop?: string;
+  winrateLearning?: string;
+  multiTimeFrameAnalysis?: string;
   riskReward?: string;
   duration?: string;
   riskLevel?: string;

@@ -3,7 +3,7 @@ import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { updatePassword, updateProfile, deleteUser, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { ref, listAll, deleteObject } from 'firebase/storage';
 import { auth, db, storage } from '../lib/firebase';
-import { Loader2, User, Mail, Save, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { Loader2, User, Mail, Save, AlertTriangle, ShieldCheck, MessageCircle } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export const ProfileView: React.FC<{
@@ -19,6 +19,14 @@ export const ProfileView: React.FC<{
   const [isDeleting, setIsDeleting] = useState(false);
   const [messages, setMessages] = useState<{ error?: string, success?: string }>({});
 
+  const [broker, setBroker] = useState(userData?.broker || 'binance');
+  const [brokerApiKey, setBrokerApiKey] = useState(userData?.brokerApiKey || userData?.binanceApiKey || '');
+  const [brokerApiSecret, setBrokerApiSecret] = useState(userData?.brokerApiSecret || userData?.binanceApiSecret || '');
+  const [brokerAccountId, setBrokerAccountId] = useState(userData?.brokerAccountId || '');
+  const [autoTradingEnabled, setAutoTradingEnabled] = useState(userData?.autoTradingEnabled || false);
+  const [riskPerTrade, setRiskPerTrade] = useState(userData?.riskPerTrade || '2');
+  const [maxPositionsPerSignal, setMaxPositionsPerSignal] = useState(userData?.maxPositionsPerSignal || '1');
+
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!auth.currentUser) return;
@@ -26,11 +34,23 @@ export const ProfileView: React.FC<{
     setMessages({});
 
     try {
+      const docUpdates: any = {};
+
       if (name !== user.displayName) {
         await updateProfile(auth.currentUser, { displayName: name });
-        await updateDoc(doc(db, 'users', auth.currentUser.uid), { name });
-        onUpdate({ ...userData, name });
+        docUpdates.name = name;
       }
+
+      docUpdates.broker = broker;
+      docUpdates.brokerApiKey = brokerApiKey;
+      docUpdates.brokerApiSecret = brokerApiSecret;
+      docUpdates.brokerAccountId = brokerAccountId;
+      docUpdates.autoTradingEnabled = autoTradingEnabled;
+      docUpdates.riskPerTrade = riskPerTrade;
+      docUpdates.maxPositionsPerSignal = maxPositionsPerSignal;
+
+      await updateDoc(doc(db, 'users', auth.currentUser.uid), docUpdates);
+      onUpdate({ ...userData, ...docUpdates });
 
       if (newPassword && currentPassword) {
         const credential = EmailAuthProvider.credential(auth.currentUser.email!, currentPassword);
@@ -155,6 +175,118 @@ export const ProfileView: React.FC<{
               </div>
 
               <div className="pt-4 border-t border-white/5 space-y-4">
+                 <h4 className="text-[10px] uppercase font-black tracking-widest text-zinc-500">Integração Auto-Trading</h4>
+                 
+                 {['pro', 'elite', 'lifetime'].includes(userData?.plan) ? (
+                   <>
+                     <div className="flex items-center justify-between p-3 bg-brand-gray/30 rounded-xl border border-white/5">
+                       <div>
+                         <p className="text-sm font-bold text-white">Ativar Auto-Trading</p>
+                         <p className="text-xs text-zinc-400">Executa sinais automaticamente na corretora</p>
+                       </div>
+                       <input
+                         type="checkbox"
+                         checked={autoTradingEnabled}
+                         onChange={(e) => setAutoTradingEnabled(e.target.checked)}
+                         className="w-5 h-5 accent-brand-red rounded bg-brand-dark/50 border border-white/10 cursor-pointer"
+                       />
+                     </div>
+
+                     <div className="space-y-1.5">
+                       <label className="text-[10px] uppercase font-black tracking-widest text-zinc-500 ml-1">Risco Por Trade (%)</label>
+                       <input 
+                         type="number" 
+                         value={riskPerTrade}
+                         onChange={(e) => setRiskPerTrade(e.target.value)}
+                         placeholder="Ex: 2"
+                         className="w-full bg-brand-dark/50 border border-white/5 rounded-xl py-3 px-4 text-white text-sm focus:outline-none focus:border-brand-red/50 transition-colors"
+                       />
+                     </div>
+
+                     <div className="space-y-1.5">
+                       <label className="text-[10px] uppercase font-black tracking-widest text-zinc-500 ml-1">Máximo de Posições Simultâneas / Por Sinal</label>
+                       <input 
+                         type="number" 
+                         value={maxPositionsPerSignal}
+                         onChange={(e) => setMaxPositionsPerSignal(e.target.value)}
+                         placeholder="Ex: 1"
+                         min="1"
+                         className="w-full bg-brand-dark/50 border border-white/5 rounded-xl py-3 px-4 text-white text-sm focus:outline-none focus:border-brand-red/50 transition-colors"
+                       />
+                       <p className="text-[10px] text-zinc-500 ml-1">Recomendado: Para a segurança da banca, o cliente deve escolher quantas posições no máximo o IA pode abrir.</p>
+                     </div>
+
+                     <div className="space-y-1.5">
+                       <label className="text-[10px] uppercase font-black tracking-widest text-zinc-500 ml-1">Corretora (Broker)</label>
+                       <select 
+                         value={broker}
+                         onChange={(e) => setBroker(e.target.value)}
+                         className="w-full bg-brand-dark/50 border border-white/5 rounded-xl py-3 px-4 text-white text-sm focus:outline-none focus:border-brand-red/50 transition-colors"
+                       >
+                         <option value="binance">Binance</option>
+                         <option value="deriv">Deriv</option>
+                         <option value="exness">Exness</option>
+                         <option value="just_market">Just Market</option>
+                         <option value="fxpro">FXPRO</option>
+                         <option value="xm_global">XM GLOBAL</option>
+                         <option value="custom">Outra (Custom/Webhook)</option>
+                       </select>
+                     </div>
+
+                     <div className="space-y-1.5">
+                       <label className="text-[10px] uppercase font-black tracking-widest text-zinc-500 ml-1">ID da Conta (Account ID)</label>
+                       <input 
+                         type="text" 
+                         value={brokerAccountId}
+                         onChange={(e) => setBrokerAccountId(e.target.value)}
+                         placeholder="Ex: 12345678"
+                         className="w-full bg-brand-dark/50 border border-white/5 rounded-xl py-3 px-4 text-white text-sm focus:outline-none focus:border-brand-red/50 transition-colors"
+                       />
+                     </div>
+
+                     <div className="space-y-1.5">
+                       <label className="text-[10px] uppercase font-black tracking-widest text-zinc-500 ml-1">API Key / Webhook URL (Apenas Leitura & Trade)</label>
+                       <input 
+                         type="text" 
+                         value={brokerApiKey}
+                         onChange={(e) => setBrokerApiKey(e.target.value)}
+                         placeholder="Cole aqui a API Key / URL"
+                         className="w-full bg-brand-dark/50 border border-white/5 rounded-xl py-3 px-4 text-white text-sm focus:outline-none focus:border-brand-red/50 transition-colors"
+                       />
+                     </div>
+
+                     <div className="space-y-1.5">
+                       <label className="text-[10px] uppercase font-black tracking-widest text-zinc-500 ml-1">API Secret / Server Token</label>
+                       <input 
+                         type="password" 
+                         value={brokerApiSecret}
+                         onChange={(e) => setBrokerApiSecret(e.target.value)}
+                         placeholder="Cole aqui o seu Secret/Token"
+                         className="w-full bg-brand-dark/50 border border-white/5 rounded-xl py-3 px-4 text-white text-sm focus:outline-none focus:border-brand-red/50 transition-colors"
+                       />
+                     </div>
+                     <div className="space-y-1.5">
+                       <label className="text-[10px] uppercase font-black tracking-widest text-zinc-500 ml-1">Trade Comment (Metatrader/Corretora)</label>
+                       <input 
+                         type="text" 
+                         value="QuantScan IA"
+                         disabled
+                         className="w-full bg-brand-dark/30 border border-white/5 rounded-xl py-3 px-4 text-green-500 font-bold text-sm focus:outline-none opacity-80"
+                       />
+                       <p className="text-[10px] text-zinc-500 ml-1">Este comentário será enviado obrigatoriamente a cada trade executado, provando a autenticidade das operações na sua corretora.</p>
+                     </div>
+                   </>
+                 ) : (
+                   <div className="p-4 bg-brand-red/10 border border-brand-red/20 rounded-xl space-y-2">
+                      <p className="text-sm font-bold text-white">Upgrade Necessário</p>
+                      <p className="text-xs text-zinc-400">
+                        A funcionalidade de Auto-Trading está disponível exclusivamente a partir do <strong className="text-brand-red">Plano Pro</strong>. Evolua sua conta para automatizar suas operações de forma profissional.
+                      </p>
+                   </div>
+                 )}
+              </div>
+
+              <div className="pt-4 border-t border-white/5 space-y-4">
                  <h4 className="text-[10px] uppercase font-black tracking-widest text-zinc-500">Change Password & Danger Zone</h4>
                  
                  <div className="space-y-1.5">
@@ -202,6 +334,25 @@ export const ProfileView: React.FC<{
                 </button>
               </div>
             </form>
+          </motion.div>
+
+          {/* WhatsApp Support Group */}
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card p-6 border-[#25D366]/30 bg-[#25D366]/5">
+            <h3 className="text-sm font-black italic uppercase text-white tracking-widest mb-2 flex items-center gap-2">
+              <MessageCircle size={18} className="text-[#25D366]" /> Suporte & Comunidade
+            </h3>
+            <p className="text-xs text-zinc-400 font-medium mb-6">
+              Entre no nosso grupo exclusivo do WhatsApp para tirar dúvidas, interagir com outros traders e receber suporte diretamente da nossa equipe.
+            </p>
+            <a 
+              href="https://chat.whatsapp.com/INRk63y3sPs8vfiR6eLdJh" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="w-full bg-[#25D366] hover:bg-[#20bd5a] text-black py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all text-sm"
+            >
+              <MessageCircle size={18} />
+              Entrar no Grupo WhatsApp
+            </a>
           </motion.div>
         </div>
       </div>
