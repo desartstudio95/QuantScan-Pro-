@@ -23,6 +23,8 @@ export interface Signal {
   entry: string;
   stopLoss: string;
   takeProfit: string;
+  takeProfit2?: string;
+  takeProfit3?: string;
   score: number;
   justification: string;
   result: SignalResult;

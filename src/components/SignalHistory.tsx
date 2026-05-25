@@ -24,7 +24,7 @@ export const SignalHistory: React.FC = () => {
       const pendingSignals = signals.filter(s => s.result === SignalResult.PENDING);
       if (pendingSignals.length === 0) return;
       
-      const pairs = Array.from(new Set(pendingSignals.map(s => s.pair)));
+      const pairs = Array.from(new Set<string>(pendingSignals.map(s => s.pair || '')));
 
       try {
         const promises = pairs.map(symbol => fetchCurrentPrice(symbol));
@@ -33,7 +33,7 @@ export const SignalHistory: React.FC = () => {
         const newPrices: Record<string, number> = {};
         results.forEach((price, index) => {
           if (price !== null) {
-            newPrices[pairs[index]] = price;
+            newPrices[pairs[index] as string] = price;
           }
         });
         setMarketPrices(prev => ({ ...prev, ...newPrices }));

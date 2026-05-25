@@ -7,7 +7,6 @@ import { MarketTicker } from './MarketTicker';
 import Autoplay from 'embla-carousel-autoplay';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "./ui/carousel";
 import { Card, CardContent } from "./ui/card";
-import { AddTestimonialForm } from './AddTestimonialForm';
 
 interface LandingPageProps {
   onGetStarted: () => void;
@@ -336,7 +335,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewPl
               <p className="text-zinc-500 text-sm text-center">Nenhum resultado postado ainda.</p>
             )}
           </div>
-          <AddTestimonialForm />
         </div>
       </section>
 

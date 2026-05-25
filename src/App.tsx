@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
 import { AnalysisView } from './components/AnalysisView';
+import { AutoTradingView } from './components/AutoTradingView';
 import { SignalHistory } from './components/SignalHistory';
 import { DashboardStats } from './components/DashboardStats';
 import { PlansView } from './components/PlansView';
@@ -622,6 +623,7 @@ export default function App() {
             <span className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1">Olá Humano, Bem-Vindo</span>
             <h2 className="text-2xl font-black italic uppercase tracking-tighter text-white">
               {activeTab === 'scan' && 'Scanner de IA'}
+              {activeTab === 'autoTrade' && 'Auto Trading'}
               {activeTab === 'history' && 'Histórico de Sinais'}
               {activeTab === 'stats' && 'Performance & Dados'}
               {activeTab === 'profile' && 'Perfil do Usuário'}
@@ -668,6 +670,7 @@ export default function App() {
               transition={{ duration: 0.25, ease: 'easeOut' }}
             >
               {activeTab === 'scan' && <AnalysisView userData={userData} onGoToHistory={() => setActiveTab('history')} />}
+              {activeTab === 'autoTrade' && <AutoTradingView userData={userData} onUpdate={setUserData} onNavigate={setActiveTab} isAdmin={isAdmin} />}
               {activeTab === 'history' && <SignalHistory />}
               {activeTab === 'stats' && <DashboardStats />}
               {activeTab === 'profile' && <ProfileView user={user} userData={userData} onUpdate={setUserData} onDeleted={handleLogout} />}

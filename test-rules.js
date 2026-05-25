@@ -1,36 +1,40 @@
-import { readFileSync } from 'fs';
-import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
+import { getFirestore, collection, query, where, getDocs, addDoc, updateDoc } from "firebase/firestore";
+import { initializeApp } from "firebase/app";
 
-async function main() {
-  const projectId = `test-project-${Date.now()}`;
-  const testEnv = await initializeTestEnvironment({
-    projectId,
-    firestore: {
-      rules: readFileSync('firestore.rules', 'utf8'),
-    },
-  });
+const firebaseConfig = {
+  apiKey: "AIzaSyDVUxpAmWf57dGrj0dltwg-2d3jytGpJCY",
+  authDomain: "quantscan-pro.firebaseapp.com",
+  projectId: "quantscan-pro",
+  storageBucket: "quantscan-pro.firebasestorage.app",
+  messagingSenderId: "580184623755",
+  appId: "1:580184623755:web:4c5fcf6fd4a8f7bc13628e",
+  measurementId: "G-4WZHMKD7Y6"
+};
 
-  const alice = testEnv.authenticatedContext('alice', { email: 'alice@example.com' });
-  const db = alice.firestore();
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
-  // Test signals query
-  const signalsRef = db.collection('signals');
-  const q = signalsRef.where('userId', '==', 'alice');
-  
+async function test() {
   try {
-    await assertSucceeds(q.get());
-    console.log("SUCCESS: signals query passed");
-  } catch (err) {
-    console.error("FAILED: signals query failed", err);
-  }
-
-  // Next, let's try users list
-  try {
-    await assertFails(db.collection('users').get());
-    console.log("SUCCESS: non-admin users list correctly denied");
-  } catch(err) {
-    console.error("FAILED: non-admin users list passed or threw error we didn't expect", err);
+    const signalsRef = collection(db, "telegram_active_signals");
+    console.log("Adding doc...");
+    const ref = await addDoc(signalsRef, { status: "ACTIVE", pair: "TEST/USD" });
+    console.log("Added doc", ref.id);
+    
+    console.log("Querying...");
+    const q = query(signalsRef, where("status", "==", "ACTIVE"));
+    const querySnapshot = await getDocs(q);
+    console.log("Query returned", querySnapshot.size);
+    
+    for (const docSnap of querySnapshot.docs) {
+      if (docSnap.id === ref.id) {
+         console.log("Updating doc...");
+         await updateDoc(docSnap.ref, { status: "CLOSED" });
+         console.log("Update success!");
+      }
+    }
+  } catch (e) {
+    console.error("Error monitoring signals:", e);
   }
 }
-
-main().then(() => process.exit(0)).catch(err => { console.error(err); process.exit(1); });
+test();

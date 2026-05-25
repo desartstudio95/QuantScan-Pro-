@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, History, PieChart, Info, LogOut, CreditCard, ShieldCheck, User } from 'lucide-react';
+import { LayoutDashboard, History, PieChart, Info, LogOut, CreditCard, ShieldCheck, User, Cpu } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface NavbarProps {
@@ -12,6 +12,7 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, isAdmin, user }) => {
   const mainTabs = [
     { id: 'scan', label: 'Scan IA', icon: LayoutDashboard },
+    { id: 'autoTrade', label: 'Auto Trading', icon: Cpu },
     { id: 'history', label: 'Histórico', icon: History },
     { id: 'stats', label: 'Estatísticas', icon: PieChart },
   ];

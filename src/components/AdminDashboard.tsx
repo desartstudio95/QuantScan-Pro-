@@ -600,11 +600,14 @@ export const AdminDashboard: React.FC = () => {
                 </h4>
                 <ul className="ml-8 list-disc list-inside space-y-2 text-zinc-400">
                   <li><strong>Title:</strong> QuantScan IA Auto-Worker (ou qualquer nome)</li>
-                  <li><strong>URL:</strong> Copie e cole a URL abaixo:</li>
+                  <li><strong>URL:</strong> Copie a URL abaixo:</li>
                 </ul>
                 <div className="ml-8 bg-black border border-white/10 p-3 rounded-lg text-xs font-mono select-all overflow-x-auto text-green-400">
-                  {window.location.origin}/api/cron/auto-scanner
+                  {window.location.origin.replace('ais-dev', 'ais-pre')}/api/cron/auto-scanner
                 </div>
+                <p className="ml-8 text-[10px] text-brand-red font-bold">
+                  Atenção: A URL deve usar "ais-pre" (sua versão pública/compartilhada). Se você usar a "ais-dev", o acesso será negado por conta do login de desenvolvedor. Você também precisa publicar/compartilhar o app pelo menos uma vez.
+                </p>
 
                 <h4 className="font-bold text-white flex items-center gap-2">
                   <span className="bg-blue-500/20 text-blue-400 w-6 h-6 rounded-full flex items-center justify-center text-xs border border-blue-500/30">3</span>

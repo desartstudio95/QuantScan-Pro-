@@ -241,7 +241,6 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
     setPreview(null);
     setResult(null);
     setError(null);
-    setMockPrice(null);
     setAlerts([]);
   };
 

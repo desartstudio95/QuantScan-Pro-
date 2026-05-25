@@ -124,6 +124,11 @@ service cloud.firestore {
     match /settings/{settingId} {
       allow read: if true;
       allow update, create, delete: if isDbAdmin();
+      
+      }
+      // --- Telegram Active Signals (Usado pelo background worker) ---
+    match /telegram_active_signals/{document=**} {
+      allow read, write: if true; 
     }
   }
 }
