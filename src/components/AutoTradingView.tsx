@@ -8,13 +8,38 @@ import {
 import { cn } from '../lib/utils';
 
 export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) => void, onNavigate?: (tab: string) => void, isAdmin?: boolean }> = ({ userData, onUpdate, onNavigate, isAdmin }) => {
-  const [robotActive, setRobotActive] = useState(false);
+  const [robotActive, setRobotActive] = useState(userData?.tradingSettings?.engineRunning ?? false);
   const [mtPlatform, setMtPlatform] = useState(userData?.mtPlatform || 'mt5');
   const [mtLogin, setMtLogin] = useState(userData?.mtLogin || '');
   const [mtPassword, setMtPassword] = useState(userData?.mtPassword || '');
   const [mtServer, setMtServer] = useState(userData?.mtServer || '');
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [testResult, setTestResult] = useState<{message: string, isError: boolean} | null>(null);
+  const [isTesting, setIsTesting] = useState(false);
+  const [autoTrades, setAutoTrades] = useState<any[]>([]);
+
+  React.useEffect(() => {
+    let unsubscribe = () => {};
+    if (userData?.uid) {
+        (async () => {
+            const { collection, query, orderBy, limit, onSnapshot } = await import('firebase/firestore');
+            const { db } = await import('../lib/firebase');
+            const q = query(
+                collection(db, "users", userData.uid, "auto_trades"),
+                orderBy("timestamp", "desc"),
+                limit(10)
+            );
+            unsubscribe = onSnapshot(q, (snap) => {
+                const trades = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                setAutoTrades(trades);
+            }, (error) => {
+                console.warn("Notice: Firestore rules not updated for auto_trades yet.", error.message);
+            });
+        })();
+    }
+    return () => unsubscribe();
+  }, [userData?.uid]);
 
   // Bot Settings State
   const [tradingSettings, setTradingSettings] = useState([
@@ -27,14 +52,17 @@ export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) 
   const [riskPerTrade, setRiskPerTrade] = useState(userData?.tradingSettings?.riskPerTrade?.toString() || "1.5");
   const [maxPositions, setMaxPositions] = useState(userData?.tradingSettings?.maxPositions?.toString() || "3");
   const [selectedAsset, setSelectedAsset] = useState(userData?.tradingSettings?.selectedAsset || 'XAU/USD');
+  const [symbolSuffix, setSymbolSuffix] = useState(userData?.tradingSettings?.symbolSuffix || '');
 
-  const saveSettingsToFirebase = async (newSettings: any[], newRisk: string, newMax: string, newAsset?: string) => {
+  const saveSettingsToFirebase = async (newSettings: any[], newRisk: string, newMax: string, newAsset?: string, newSuffix?: string, newRobotActive?: boolean) => {
     if (!userData?.uid) return;
     const { doc, updateDoc } = await import('firebase/firestore');
     const { db } = await import('../lib/firebase');
     const userRef = doc(db, 'users', userData.uid);
     
     const assetToSave = newAsset ?? selectedAsset;
+    const suffixToSave = newSuffix ?? symbolSuffix;
+    const engineToSave = newRobotActive ?? robotActive;
     
     const updatedSettingsObj = {
       smartEntry: newSettings[0].active,
@@ -44,7 +72,9 @@ export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) 
       autoSl: newSettings[4].active,
       riskPerTrade: parseFloat(newRisk) || 1.5,
       maxPositions: parseInt(newMax) || 3,
-      selectedAsset: assetToSave
+      selectedAsset: assetToSave,
+      symbolSuffix: suffixToSave,
+      engineRunning: engineToSave
     };
 
     try {
@@ -65,15 +95,19 @@ export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) 
   };
 
   const handleRiskBlur = () => {
-    saveSettingsToFirebase(tradingSettings, riskPerTrade, maxPositions);
+    saveSettingsToFirebase(tradingSettings, riskPerTrade, maxPositions, selectedAsset, symbolSuffix);
   };
 
   const handleMaxBlur = () => {
-    saveSettingsToFirebase(tradingSettings, riskPerTrade, maxPositions);
+    saveSettingsToFirebase(tradingSettings, riskPerTrade, maxPositions, selectedAsset, symbolSuffix);
   };
 
   const handleAssetBlur = () => {
-    saveSettingsToFirebase(tradingSettings, riskPerTrade, maxPositions, selectedAsset);
+    saveSettingsToFirebase(tradingSettings, riskPerTrade, maxPositions, selectedAsset, symbolSuffix);
+  };
+
+  const handleSuffixBlur = () => {
+    saveSettingsToFirebase(tradingSettings, riskPerTrade, maxPositions, selectedAsset, symbolSuffix);
   };
 
   const handleDisconnectBroker = async () => {
@@ -166,14 +200,14 @@ export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) 
     <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-8 animate-in fade-in duration-500">
       
       {/* HEADER PRINCIPAL */}
-      <div className="flex flex-col justify-end md:flex-row md:items-end md:justify-between gap-6 relative p-8 min-h-[400px] rounded-2xl bg-black/40 border border-brand-red/20 overflow-hidden group">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-brand-red/10 via-transparent to-transparent opacity-50 pointer-events-none" />
+      <div className="flex flex-col justify-end md:flex-row md:items-end md:justify-between gap-6 relative p-8 min-h-[400px] rounded-2xl bg-black/40 border border-brand-red shadow-[0_0_30px_rgba(255,0,0,0.6)] overflow-hidden group">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-brand-red/20 via-transparent to-transparent opacity-50 pointer-events-none" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none z-0" />
         <img src="https://i.ibb.co/VcJRM0zZ/90a0c129-b771-41d6-ad30-634d1d2546c4.png" alt="Background" className="absolute inset-0 w-full h-full object-cover opacity-100 mix-blend-overlay pointer-events-none" />
         
         <div className="flex items-center gap-6 relative z-10">
           <div className="space-y-1">
-             <h1 className="text-3xl font-black italic uppercase tracking-tighter text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.2)] flex items-center gap-3">
+             <h1 className="text-3xl font-black italic uppercase tracking-tighter text-brand-red drop-shadow-[0_0_20px_rgba(255,0,0,0.8)] flex items-center gap-3">
                QUANTSCAN IA
              </h1>
           </div>
@@ -204,7 +238,11 @@ export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) 
           {/* MAIN BUTTONS */}
           <div className="space-y-3 bg-black/40 border border-white/10 p-4 rounded-2xl">
              <button 
-               onClick={() => setRobotActive(!robotActive)}
+               onClick={() => {
+                 const newValue = !robotActive;
+                 setRobotActive(newValue);
+                 saveSettingsToFirebase(tradingSettings, riskPerTrade, maxPositions, selectedAsset, symbolSuffix, newValue);
+               }}
                className={cn(
                "relative w-full py-4 rounded-xl font-black italic uppercase tracking-widest flex items-center justify-center gap-3 transition-all duration-300 overflow-hidden group",
                robotActive 
@@ -217,7 +255,58 @@ export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) 
                <Power size={20} className={cn("relative z-10 transition-transform duration-300", !robotActive && "text-brand-red animate-pulse group-hover:scale-110")} />
                <span className="relative z-10 tracking-[0.2em]">{robotActive ? "Halt System" : "Initialize Engine"}</span>
              </button>
+          </div>
 
+          <button 
+            type="button"
+            disabled={isTesting}
+            onClick={async (e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              setIsTesting(true);
+              setTestResult(null);
+              try {
+                const res = await fetch('/api/admin/test-auto-trading', {
+                  method: 'POST',
+                  headers: {'Content-Type': 'application/json'},
+                  body: JSON.stringify({ 
+                    uid: userData?.uid, 
+                    pair: selectedAsset, 
+                    decision: 'BUY', 
+                    price: 100,
+                    metaApiAccountId: userData?.metaApiAccountId,
+                    settings: {
+                       engineRunning: robotActive,
+                       symbolSuffix: symbolSuffix,
+                       riskPerTrade: parseFloat(riskPerTrade || "1.0")
+                    }
+                  })
+                });
+                const result = await res.json();
+                if (result.success) {
+                   setTestResult({ message: "Teste Executado com Sucesso! " + JSON.stringify(result.tradeResult), isError: false });
+                } else {
+                   setTestResult({ message: "Erro no teste: " + result.error, isError: true });
+                }
+              } catch (err: any) {
+                setTestResult({ message: "System error: " + err.message, isError: true });
+              } finally {
+                setIsTesting(false);
+              }
+            }}
+            className={cn("w-full bg-brand-red text-white font-mono text-xl font-bold py-6 rounded-xl hover:bg-brand-red/80 transition-colors relative z-50 pointer-events-auto cursor-pointer border border-brand-red shadow-[0_0_20px_rgba(255,0,0,0.5)]", isTesting && "opacity-50 cursor-not-allowed")}
+            title="Apenas testa se o bot consegue ligar com a corretora e se a paridade existe."
+          >
+            {isTesting ? "TESTING CONNECTION..." : "RUN CONNECTION TEST NOW"}
+          </button>
+          
+          {testResult && (
+             <div className={cn("p-4 rounded-xl text-sm font-mono break-words border", testResult.isError ? "bg-red-500/10 text-red-500 border-red-500/30" : "bg-green-500/10 text-green-500 border-green-500/30")}>
+                {testResult.message}
+             </div>
+          )}
+
+          <div className="space-y-3 bg-black/40 border border-white/10 p-4 rounded-2xl">
              <div className="space-y-4 bg-black/40 border border-brand-red/20 p-5 rounded-2xl relative overflow-hidden">
                <div className="absolute top-0 right-0 p-4 opacity-10">
                  <Cpu size={100} className="text-brand-red" />
@@ -305,6 +394,17 @@ export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) 
                       value={selectedAsset}
                       onChange={(e) => setSelectedAsset(e.target.value)}
                       onBlur={handleAssetBlur}
+                      className="w-full bg-black border border-white/10 rounded-lg p-3 text-sm text-white font-mono focus:border-brand-red outline-none transition-colors" 
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Sufixo da Corretora (MT4/5)</label>
+                    <input 
+                      type="text" 
+                      placeholder="Ex: .m, .std"
+                      value={symbolSuffix}
+                      onChange={(e) => setSymbolSuffix(e.target.value)}
+                      onBlur={handleSuffixBlur}
                       className="w-full bg-black border border-white/10 rounded-lg p-3 text-sm text-white font-mono focus:border-brand-red outline-none transition-colors" 
                     />
                   </div>
@@ -444,6 +544,36 @@ export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) 
              <button className="bg-[#0088cc] hover:bg-[#0088cc]/80 text-white font-bold uppercase tracking-widest text-[10px] px-6 py-3 rounded-xl transition-colors shrink-0">
                Configurar
              </button>
+           </div>
+           
+           {/* ACTIVITY LOGS WIDGET */}
+           <div className="bg-black/40 border border-white/10 p-5 rounded-2xl">
+             <h3 className="font-black italic uppercase text-white tracking-widest text-sm mb-6 flex items-center gap-2">
+               <Activity size={16} className="text-brand-red" /> Activity Logs (Auto Trading)
+             </h3>
+             <div className="space-y-3">
+               {autoTrades.length === 0 ? (
+                  <p className="text-xs text-zinc-500 text-center py-4">Nenhum trade executado ainda.</p>
+               ) : (
+                  autoTrades.map((t) => (
+                     <div key={t.id} className="bg-black border border-white/5 p-4 rounded-xl flex items-center justify-between">
+                        <div>
+                           <div className="flex items-center gap-2">
+                              <span className={cn("text-xs font-black uppercase tracking-wider", t.decision === 'BUY' ? 'text-green-500' : 'text-red-500')}>{t.decision}</span>
+                              <span className="text-white font-bold text-sm">{t.pair}</span>
+                           </div>
+                           <div className="text-[10px] text-zinc-500 mt-1">
+                              Vol: {t.volume} • Price: {t.price?.toFixed(5)} • SL: {t.stopLoss} • TP: {t.takeProfit}
+                           </div>
+                        </div>
+                        <div className="text-right">
+                           <div className="text-[10px] text-zinc-400">{new Date(t.timestamp).toLocaleTimeString()}</div>
+                           <div className="text-[10px] text-green-500 font-bold mt-1">EXECUTADO</div>
+                        </div>
+                     </div>
+                  ))
+               )}
+             </div>
            </div>
 
         </div>

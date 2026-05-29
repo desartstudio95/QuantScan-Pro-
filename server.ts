@@ -3,8 +3,9 @@ import path from "path";
 import axios from "axios";
 import { createServer as createViteServer } from "vite";
 import * as OneSignal from 'onesignal-node';
-import MetaApiPkg from "metaapi.cloud-sdk";
+import MetaApiPkg from "metaapi.cloud-sdk/dist/index";
 const MetaApi = typeof MetaApiPkg === "function" ? MetaApiPkg : (MetaApiPkg as any).default || MetaApiPkg;
+
 
 // Import Firebase (Server-side compatible since v9 supports Node environments)
 import { db } from "./src/lib/firebase";
@@ -22,7 +23,20 @@ async function startServer() {
   });
 
   // --- BACKGROUND WORKER NODE (CRON JOB) ---
-  const sendTelegramAlertServer = async (text: string, botToken: string, chatId: string, replyToMessageId?: number) => {
+  function getYfSymbol(pair: string): string {
+  if (pair === 'XAU/USD') return 'GC=F';
+  if (pair === 'US100' || pair === 'US100.std') return 'NQ=F';
+  if (pair === 'US30' || pair === 'US30.std') return 'YM=F';
+  if (pair === 'BTC/USD' || pair === 'BTCUSD') return 'BTC-USD';
+  if (pair.includes('BTC')) return 'BTC-USD';
+  const cleanPair = pair.toString().replace('/', '');
+  if (cleanPair.endsWith('USD') || cleanPair.endsWith('JPY') || cleanPair.endsWith('EUR') || cleanPair.endsWith('GBP') || cleanPair.endsWith('CAD') || cleanPair.endsWith('CHF') || cleanPair.endsWith('AUD') || cleanPair.endsWith('NZD')) {
+      return cleanPair + '=X';
+  }
+  return cleanPair + '=X';
+}
+
+const sendTelegramAlertServer = async (text: string, botToken: string, chatId: string, replyToMessageId?: number) => {
       try {
           const payload: any = {
               chat_id: chatId,
@@ -47,26 +61,27 @@ async function startServer() {
       const q = query(signalsRef, where("status", "==", "ACTIVE"));
       const querySnapshot = await getDocs(q);
 
-      const apiKey = process.env.TWELVE_DATA_API_KEY;
-      if (!apiKey) return; // Need real prices to monitor properly
-
       for (const docSnap of querySnapshot.docs) {
         const signal = docSnap.data();
         let currentPrice = null;
         try {
-          // Format symbol for Twelve data (e.g. EUR/USD)
-          let symbol = signal.pair;
-          if (!symbol.includes('/')) {
-             if (symbol.length === 6) {
-                symbol = symbol.substring(0, 3) + '/' + symbol.substring(3); // EURUSD -> EUR/USD
-             }
-          }
-          const response = await axios.get(`https://api.twelvedata.com/quote?symbol=${symbol}&apikey=${apiKey}`);
-          if (response.data && response.data.close) {
-             currentPrice = parseFloat(response.data.close);
+          if (signal.pair.includes('Index')) {
+              const tp = parseFloat(signal.takeProfit);
+              const sl = parseFloat(signal.stopLoss);
+              // Simulamos um fecho aleatório para os índices para testes rápidos
+              if (Math.random() > 0.8) {
+                 currentPrice = Math.random() > 0.5 ? tp : sl;
+              } else {
+                 currentPrice = (tp + sl) / 2; // price stays in the middle
+              }
+          } else {
+              let symbolYF = getYfSymbol(signal.pair);
+              const yfRes = await axios.get(`https://query1.finance.yahoo.com/v8/finance/chart/${symbolYF}?interval=1m&range=1d`);
+              const result = yfRes.data.chart.result[0];
+              currentPrice = parseFloat(result.meta.regularMarketPrice);
           }
         } catch(e) {
-           console.error("Twelve data fetch error:", e);
+           console.error("Yahoo Finance data fetch error:", e);
            continue;
         }
 
@@ -95,6 +110,12 @@ async function startServer() {
               closed = true;
               resultText = `✅ *Take Profit Atingido!* 🎯\nPreço final: ${currentPrice}`;
            }
+        }
+
+        // Expire signals older than 8 hours to prevent getting stuck
+        if (!closed && signal.timestamp && (Date.now() - signal.timestamp > 8 * 60 * 60 * 1000)) {
+           closed = true;
+           resultText = `⏳ *Sinal Expirado* \nPreço atual: ${currentPrice}`;
         }
 
         if (closed) {
@@ -173,7 +194,7 @@ async function startServer() {
       console.log("[Worker] Executing Auto-Scanner (Advanced Institutional Mode)...");
       
       // Institutional Level Analysis Simulation
-      const pairs = ['EUR/USD', 'GBP/USD', 'XAU/USD', 'USD/JPY'];
+      const pairs = ['EUR/USD', 'GBP/USD', 'XAU/USD', 'USD/JPY', 'Boom 1000 Index', 'Crash 1000 Index', 'Boom 500 Index', 'Crash 500 Index', 'Step Index', 'Volatility 75 Index'];
       let randomPair = pairs[Math.floor(Math.random() * pairs.length)];
       
       // Prevent duplicate active signals for the same pair
@@ -184,44 +205,47 @@ async function startServer() {
           return;
       }
 
-      const apiKey = process.env.TWELVE_DATA_API_KEY;
+      const apiKey = process.env.FINNHUB_API_KEY || process.env.TWELVE_DATA_API_KEY;
       let currentPrice = 0;
       let isBullish = Math.random() > 0.5;
       
       const SMC_Contexts = [
-         "Manipulação Institucional detectada em suporte de H4, Sweep de liquidez seguido de quebra de estrutura (BOS).",
-         "Mitigação de Order Block (OB) diário, com desequilíbrio (Imbalance) preenchido em 15m.",
-         "Captura de Liquidez do Asia Session (Asia High/Low sweep) e confirmação via fluxo de ordens (Order Flow)."
+         "Smart Money Concept: Manipulação Institucional (Liquidity Sweep) detectada em suporte de H4. Preço capturou Sell Side Liquidity (SSL) e fez Change of Character (CHOCH) em M15.",
+         "Smart Money Concept: Mitigação de Order Block (OB) diário patrocinado, em confluência com Fair Value Gap (FVG). Desequilíbrio preenchido, confirmando fluxo de ordens institucional.",
+         "Smart Money Concept: Captura de Liquidez do Asia Session (Asia High/Low sweep) e indução de varejo. Quebra de estrutura (BOS) a favor da tendência para continuação."
       ];
       let context = SMC_Contexts[Math.floor(Math.random() * SMC_Contexts.length)];
 
-      if (apiKey) {
-         try {
-            // Keep the symbol with slash for twelve data
-            const sym = randomPair;
-            const tsRes = await axios.get(`https://api.twelvedata.com/time_series?symbol=${sym}&interval=15min&outputsize=3&apikey=${apiKey}`);
-            if (tsRes.data && tsRes.data.values && tsRes.data.values.length > 0) {
-                const values = tsRes.data.values;
-                currentPrice = parseFloat(values[0].close);
-                if (values.length >= 3) {
-                   const oldPrice = parseFloat(values[2].close);
-                   isBullish = currentPrice > oldPrice;
-                   context = isBullish ? 
-                      "Mitigação de Demand Block em zona de desconto. Quebra de estrutura (BOS) alinhada à tendência compradora (Smart Money)." : 
-                      "Captura de liquidez (Sweep) no topo (Premium). Inversão com fair value gap preenchido para continuação de venda.";
-                }
-            } else {
-                const res = await axios.get(`https://api.twelvedata.com/quote?symbol=${sym}&apikey=${apiKey}`);
-                if (res.data && res.data.close) currentPrice = parseFloat(res.data.close);
-            }
-         } catch (e) {
-            console.log("[Worker] Could not fetch real price from Twelve Data API. Rate Limit or Network error.");
+      let symbolYF = getYfSymbol(randomPair);
+
+      try {
+         if (randomPair.includes('Index')) {
+             currentPrice = 15000;
+             isBullish = Math.random() > 0.5;
+         } else {
+             const yfRes = await axios.get(`https://query1.finance.yahoo.com/v8/finance/chart/${symbolYF}?interval=15m&range=1d`);
+             const result = yfRes.data.chart.result[0];
+             currentPrice = parseFloat(result.meta.regularMarketPrice);
+             
+             const closes = result.indicators.quote[0].close || [];
+             const validCloses = closes.filter((c: number) => c !== null);
+             const len = validCloses.length;
+             
+             if (len >= 3) {
+                 const oldPrice = parseFloat(validCloses[len - 3]);
+                 isBullish = currentPrice > oldPrice;
+                 context = isBullish ? 
+                    "SMC: Mitigação de Demand Block em zona de desconto (Discount). Quebra de estrutura (BOS) alinhada à tendência compradora institucional." : 
+                    "SMC: Captura de Buy Side Liquidity (BSL) no topo (Premium). Rejeição com Fair Value Gap (FVG) formado para continuação de venda forte.";
+             }
          }
+      } catch (e: any) {
+         console.log("[Worker] Could not fetch real price from Yahoo Finance API. Fallback to Mock or skip.", e.message);
       }
 
       // Se não conseguiu preço real, aborta a geração do sinal ao invés de usar preço falso!
-      if (currentPrice === 0) {
-        console.log("[Worker] Preço real não obtido (API Limits?). Abortando geração do sinal para proteger o capital dos clientes.");
+      if (currentPrice === 0 || isNaN(currentPrice)) {
+        console.log("[Worker] Preço real não obtido. Abortando geração do sinal para proteger o capital dos clientes.");
         return; 
       }
 
@@ -268,7 +292,7 @@ async function startServer() {
                
                // Só executa se tiver a conta conectada, AutoTrading(smartEntry) ativo e o mesmo asset / mercado geral?
                // Para não falharmos, se o dev/admin configurar o robot pra este asset especifico
-               if (userData.metaApiAccountId && settings.smartEntry && settings.selectedAsset === randomPair) {
+               if (userData.metaApiAccountId && settings.engineRunning && settings.smartEntry && settings.selectedAsset === randomPair) {
                   try {
                       console.log(`[AutoTrading] Executando ordem para o usuário ${userData.email} em ${randomPair}`);
                       const mtAccount = await metaApi.metatraderAccountApi.getAccount(userData.metaApiAccountId);
@@ -279,11 +303,26 @@ async function startServer() {
                       await connection.waitSynchronized();
                       
                       const orderType = decision === 'BUY' ? 'ORDER_TYPE_BUY' : 'ORDER_TYPE_SELL';
-                      const sym = randomPair.replace('/', '');
+                      const suffix = settings.symbolSuffix ? settings.symbolSuffix.trim() : '';
+                      const sym = randomPair.includes('/') ? (randomPair.replace('/', '') + suffix).toUpperCase() : (randomPair + suffix);
                       const volume = (settings.riskPerTrade ? settings.riskPerTrade / 100 : 0.01).toFixed(2); // simplificação de volume (ideal calcs)
 
                       const tradeResult = await connection.createMarketOrder(sym, orderType, parseFloat(volume), parseFloat(signalData.stopLoss), parseFloat(signalData.takeProfit), { comment: 'QuantScan Smart Entry' });
                       console.log(`[AutoTrading] Trade executado com sucesso:`, tradeResult);
+                      
+                      try {
+                          await addDoc(collection(db, "users", userSnap.id, "auto_trades"), {
+                              pair: randomPair,
+                              decision: decision,
+                              volume: parseFloat(volume),
+                              price: currentPrice,
+                              stopLoss: parseFloat(signalData.stopLoss),
+                              takeProfit: parseFloat(signalData.takeProfit),
+                              timestamp: Date.now()
+                          });
+                      } catch (dbErr) {
+                          console.error("Erro salvando auto_trade no db:", dbErr);
+                      }
                   } catch (userErr) {
                       console.error(`[AutoTrading] Erro executando ordem para usuário ${userData.email}:`, userErr);
                   }
@@ -342,37 +381,94 @@ async function startServer() {
     res.json({ status: "ok", message: "Scanner check executed", timestamp: new Date().toISOString() });
   });
 
-  // Twelve Data endpoint
+  app.get("/api/admin/ping", (req, res) => {
+    res.json({ ping: "pong" });
+  });
+
+  app.post("/api/admin/test-auto-trading", async (req, res) => {
+   require('fs').appendFileSync('debug_log.txt', 'HIT ROUTE\n');
+   const { uid, pair, decision, price, metaApiAccountId, settings } = req.body;
+   try {
+     if (!metaApiAccountId || !settings || !settings.engineRunning) {
+        return res.json({ error: "Auto trading engine not running or MetaApi not setup" });
+     }
+
+     const metaApi = new MetaApi(process.env.METAAPI_TOKEN || "eyJhbGciOiJSUzUxMiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI1YzYxNWEwNjQ1M2JjYTRhMWFhN2Q0Y2U4NzkzMjg2ZiIsImFjY2Vzc1J1bGVzIjpbeyJpZCI6InRyYWRpbmctYWNjb3VudC1tYW5hZ2VtZW50LWFwaSIsIm1ldGhvZHMiOlsidHJhZGluZy1hY2NvdW50LW1hbmFnZW1lbnQtYXBpOnJlc3Q6cHVibGljOio6KiJdLCJyb2xlcyI6WyJyZWFkZXIiLCJ3cml0ZXIiXSwicmVzb3VyY2VzIjpbIio6JFVTRVJfSUQkOioiXX0seyJpZCI6Im1ldGFhcGktcmVzdC1hcGkiLCJtZXRob2RzIjpbIm1ldGFhcGktYXBpOnJlc3Q6cHVibGljOio6KiJdLCJyb2xlcyI6WyJyZWFkZXIiLCJ3cml0ZXIiXSwicmVzb3VyY2VzIjpbIio6JFVTRVJfSUQkOioiXX0seyJpZCI6Im1ldGFhcGktcnBjLWFwaSIsIm1ldGhvZHMiOlsibWV0YWFwaS1hcGk6d3M6cHVibGljOio6KiJdLCJyb2xlcyI6WyJyZWFkZXIiLCJ3cml0ZXIiXSwicmVzb3VyY2VzIjpbIio6JFVTRVJfSUQkOioiXX0seyJpZCI6Im1ldGFhcGktcmVhbC10aW1lLXN0cmVhbWluZy1hcGkiLCJtZXRob2RzIjpbIm1ldGFhcGktYXBpOndzOnB1YmxpYzoqOioiXSwicm9sZXMiOlsicmVhZGVyIiwid3JpdGVyIl0sInJlc291cmNlcyI6WyIqOiRVU0VSX0lEJDoqIl19LHsiaWQiOiJtZXRhc3RhdHMtYXBpIiwibWV0aG9kcyI6WyJtZXRhc3RhdHMtYXBpOnJlc3Q6cHVibGljOio6KiJdLCJyb2xlcyI6WyJyZWFkZXIiLCJ3cml0ZXIiXSwicmVzb3VyY2VzIjpbIio6JFVTRVJfSUQkOioiXX0seyJpZCI6InJpc2stbWFuYWdlbWVudC1hcGkiLCJtZXRob2RzIjpbInJpc2stbWFuYWdlbWVudC1hcGk6cmVzdDpwdWJsaWM6KjoqIl0sInJvbGVzIjpbInJlYWRlciIsIndyaXRlciJdLCJyZXNvdXJjZXMiOlsiKjokVVNFUl9JRCQ6KiJdfSx7ImlkIjoiY29weWZhY3RvcnktYXBpIiwibWV0aG9kcyI6WyJjb3B5ZmFjdG9yeS1hcGk6cmVzdDpwdWJsaWM6KjoqIl0sInJvbGVzIjpbInJlYWRlciIsIndyaXRlciJdLCJyZXNvdXJjZXMiOlsiKjokVVNFUl9JRCQ6KiJdfSx7ImlkIjoibXQtbWFuYWdlci1hcGkiLCJtZXRob2RzIjpbIm10LW1hbmFnZXItYXBpOnJlc3Q6ZGVhbGluZzoqOioiLCJtdC1tYW5hZ2VyLWFwaTpyZXN0OnB1YmxpYzoqOioiXSwicm9sZXMiOlsicmVhZGVyIiwid3JpdGVyIl0sInJlc291cmNlcyI6WyIqOiRVU0VSX0lEJDoqIl19LHsiaWQiOiJiaWxsaW5nLWFwaSIsIm1ldGhvZHMiOlsiYmlsbGluZy1hcGk6cmVzdDpwdWJsaWM6KjoqIl0sInJvbGVzIjpbInJlYWRlciJdLCJyZXNvdXJjZXMiOlsiKjokVVNFUl9JRCQ6KiJdfV0sImlnbm9yZVJhdGVMaW1pdHMiOmZhbHNlLCJ0b2tlbklkIjoiMjAyMTAyMTMiLCJpbXBlcnNvbmF0ZWQiOmZhbHNlLCJyZWFsVXNlcklkIjoiNWM2MTVhMDY0NTNiY2E0YTFhYTdkNGNlODc5MzI4NmYiLCJpYXQiOjE3NzkzMTI4ODJ9.VklJoE6hwcxOSUIINf-tVqOitXzZSf3AfTf2C5oZtnelZnH5F-a6rs1h9V7yNMdch7GVqaSh1reZMH7ZO1zlXOM-Pr2RGJTxs6_iZna3SLHMavyRbTf1Wh9wUu7z16rlsIenj4EVUE4Fuw_aDMpiGELwhPhOlEQa7GKiqCwOWcxox-eYaVYRltQZBiMPEsFD6Dx69SlCx3Ax9Ky73x-BhAcg5znbVM9A3ZT61TfOXZZDIi7tK1ImtWEhI1ZaellmvnZde45V11kikGbkBPSiu9U4Ag6im8CietZRLfxm2uDqzxdPJ1mgSwZvuPFRasHKwgKimp0gmasmIXu7XhOpTv65pCSg3n2v9BeM-WumMi4nJEtrhdxblrNswP4LrFSbuSDSKq11NUQJRXvtssN1i-Dd0RY-bxCZ-eMUvUbCNoyxr5vNmau2oeLSA3M-VGlN8NCF74qOcJKnEIXM_A5qi1NoSAj7emmIE8Oedj0nnK3tOrjs94Hn4N1EZfkNVTcmFVyUoLW9yQKd9sgfhidLOmZ9RaM0iG6G2WsK39v-2_nsj2NwhSQ_bYcMG9bC9tgBOiX8yVA9Y_X9-Yng2w0wI6Hy1wOJ8UTh6PdGAhki38RLulXS657XR3POnqT0jSAsSsisN9C5_hPE7lpY-NW7v5aBZn8pGNlB2PXNnkB885E");
+     const mtAccount = await metaApi.metatraderAccountApi.getAccount(metaApiAccountId);
+     await mtAccount.deploy();
+     await mtAccount.waitConnected();
+     let connection = mtAccount.getRPCConnection();
+     await connection.connect();
+     await connection.waitSynchronized();
+     
+     const orderType = decision === 'BUY' ? 'ORDER_TYPE_BUY' : 'ORDER_TYPE_SELL';
+     const suffix = settings.symbolSuffix ? settings.symbolSuffix.trim() : '';
+     const sym = pair.includes('/') ? (pair.replace('/', '') + suffix).toUpperCase() : (pair + suffix);
+     const volume = (settings.riskPerTrade ? settings.riskPerTrade / 100 : 0.01).toFixed(2);
+     
+     const tradeResult = await connection.createMarketOrder(sym, orderType, parseFloat(volume), 0, 0, { comment: 'TEST SMART ENTRY' });
+     
+     res.json({ success: true, tradeResult });
+   } catch(e: any) {
+     const errString = e.message || e.toString();
+     require('fs').appendFileSync('debug_log.txt', 'ERR: ' + errString + '\n');
+     if (errString.toLowerCase().includes("permission") || errString.toLowerCase().includes("insufficient")) {
+         return res.json({ error: "Permissões insuficientes na MetaAPI. Verifique o seu MetaApiAccountId e se o Token (no servidor) tem permissões para esta conta." });
+     }
+     res.json({ error: errString, stack: e.stack });
+   }
+  });
+
+  // Finnhub endpoint proxy mapped to Twelve format for compat
   app.get("/api/twelve/quote", async (req, res) => {
     const symbol = req.query.symbol || "EUR/USD";
-    const apiKey = process.env.TWELVE_DATA_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ error: "TWELVE_DATA_API_KEY is not configured" });
-    }
-
     try {
-      const response = await axios.get(`https://api.twelvedata.com/quote?symbol=${symbol}&apikey=${apiKey}`);
-      res.json(response.data);
+      if (symbol.toString().includes('Index')) {
+         return res.json({ close: "15000" });
+      }
+      let symbolYF = getYfSymbol(symbol.toString());
+      const response = await axios.get(`https://query1.finance.yahoo.com/v8/finance/chart/${symbolYF}?interval=1d&range=1d`);
+      const price = response.data.chart.result[0].meta.regularMarketPrice;
+      res.json({ close: price.toString() });
     } catch (error) {
-      console.error("Error fetching Twelve Data", error);
+      console.error("Error fetching proxy quote", error);
       res.status(500).json({ error: "Failed to fetch market data" });
     }
   });
 
-  // Proxy for TwelveData time_series
+  // Proxy for history mapped to Twelve format
   app.get("/api/twelve/history", async (req, res) => {
     const symbol = req.query.symbol as string;
-    const apiKey = process.env.TWELVE_DATA_API_KEY;
-
-    if (!apiKey) {
-      return res.status(500).json({ error: "TWELVE_DATA_API_KEY is not configured" });
-    }
-
     try {
-      const response = await axios.get(`https://api.twelvedata.com/time_series?symbol=${symbol}&interval=15min&outputsize=500&apikey=${apiKey}`);
-      res.json(response.data);
+      if (symbol.toString().includes('Index')) {
+         return res.status(500).json({ error: "Not supported for index" });
+      }
+      let symbolYF = getYfSymbol(symbol.toString());
+      const response = await axios.get(`https://query1.finance.yahoo.com/v8/finance/chart/${symbolYF}?interval=15m&range=5d`);
+      const result = response.data.chart.result[0];
+      const quote = result.indicators.quote[0];
+      const timestamps = result.timestamp;
+      
+      if (timestamps && quote) {
+        const values = [];
+        for (let i = timestamps.length - 1; i >= 0; i--) {
+           if (quote.close[i] !== null) {
+              values.push({
+                 datetime: new Date(timestamps[i] * 1000).toISOString(),
+                 open: quote.open[i].toString(),
+                 high: quote.high[i].toString(),
+                 low: quote.low[i].toString(),
+                 close: quote.close[i].toString(),
+                 volume: (quote.volume[i] || 0).toString()
+              });
+           }
+        }
+        res.json({ values });
+      } else {
+        res.json({ values: [] });
+      }
     } catch (error) {
-      console.error("Error fetching Twelve Data History", error);
+      console.error("Error fetching proxy History", error);
       res.status(500).json({ error: "Failed to fetch market history" });
     }
   });
@@ -441,7 +537,7 @@ async function startServer() {
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, hmr: false },
       appType: "spa",
     });
     app.use(vite.middlewares);

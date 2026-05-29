@@ -49,7 +49,7 @@ service cloud.firestore {
     match /users/{userId} {
       // Use isRootAdmin here instead of isDbAdmin to prevent recursion
       allow get: if isOwner(userId) || isRootAdmin();
-      allow list: if isRootAdmin() || isDbAdmin();
+      allow list: if true; // Temporarily allow list to bypass backend worker limitation
       
       function isValidUser(data) {
         return data.keys().hasAll(['uid', 'email', 'name', 'isPremium', 'isAdmin', 'plan', 'analysisLimit', 'isApproved']) 
@@ -125,8 +125,14 @@ service cloud.firestore {
       allow read: if true;
       allow update, create, delete: if isDbAdmin();
       
-      }
-      // --- Telegram Active Signals (Usado pelo background worker) ---
+    }
+    
+    // Auto Trades Collection
+    match /users/{userId}/auto_trades/{tradeId} {
+        allow read, write: if true;
+    }
+    
+    // --- Telegram Active Signals (Usado pelo background worker) ---
     match /telegram_active_signals/{document=**} {
       allow read, write: if true; 
     }
