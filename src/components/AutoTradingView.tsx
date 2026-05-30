@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { 
   Bot, Power, Activity, Settings2, Link, Zap, Shield, 
   BarChart2, TrendingUp, DollarSign, Send, Globe2, AlertTriangle, 
-  Fingerprint, ChevronRight, Server, Cpu, Radio, Network, CheckCircle2
+  Fingerprint, ChevronRight, Server, Cpu, Radio, Network, CheckCircle2, ShieldCheck
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -11,7 +11,9 @@ export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) 
   const [robotActive, setRobotActive] = useState(userData?.tradingSettings?.engineRunning ?? false);
   const [mtPlatform, setMtPlatform] = useState(userData?.mtPlatform || 'mt5');
   const [mtLogin, setMtLogin] = useState(userData?.mtLogin || '');
-  const [mtPassword, setMtPassword] = useState(userData?.mtPassword || '');
+  const [mtPassword, setMtPassword] = useState(
+    userData?.mtPlatform === 'deriv_api' ? (userData?.mtPassword || userData?.savedDerivToken || '') : (userData?.mtPassword || '')
+  );
   const [mtServer, setMtServer] = useState(userData?.mtServer || '');
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -123,16 +125,28 @@ export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) 
         mtPassword: '',
         mtServer: '',
         metaApiAccountId: null,
-        metaApiState: null
+        metaApiState: null,
+        derivName: null,
+        derivEmail: null,
+        derivCurrency: null,
+        derivAccountList: null,
+        derivMt5AccountList: null
       });
 
       if (onUpdate) {
-        onUpdate({ ...userData, mtPlatform: '', mtLogin: '', mtPassword: '', mtServer: '', metaApiAccountId: null, metaApiState: null });
+        onUpdate({ ...userData, mtPlatform: '', mtLogin: '', mtPassword: '', mtServer: '', metaApiAccountId: null, metaApiState: null, derivName: null, derivEmail: null, derivCurrency: null, derivAccountList: null, derivMt5AccountList: null });
       }
-      setMtPlatform('mt5');
-      setMtLogin('');
-      setMtPassword('');
-      setMtServer('');
+      if (userData?.mtPlatform === 'deriv_api') {
+        setMtPlatform('deriv_api');
+        setMtLogin('');
+        setMtPassword(userData.savedDerivToken || userData.mtPassword || '');
+        setMtServer('');
+      } else {
+        setMtPlatform('mt5');
+        setMtLogin('');
+        setMtPassword('');
+        setMtServer('');
+      }
     } catch (e: any) {
       console.error("Error disconnecting broker:", e);
       alert(e.message || "Failed to disconnect");
@@ -145,39 +159,81 @@ export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) 
     if (!userData?.uid) return;
     setIsSaving(true);
     try {
-      // First try to provision through our backend proxy
-      const res = await fetch('/api/metaapi/provision', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          platform: mtPlatform,
-          login: mtLogin,
-          password: mtPassword,
-          serverName: mtServer
-        })
-      });
-      
-      const data = await res.json();
-      
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to connect to MetaAPI');
+      let extAccountId = null;
+      let extState = null;
+      let finalLogin = mtLogin;
+      let finalServer = mtServer;
+      let derivData: any = null;
+
+      if (mtPlatform === 'deriv_api') {
+        const cleanToken = mtPassword.trim();
+        if (!/^[\w\-]{1,128}$/.test(cleanToken)) {
+           throw new Error("Token Deriv inválido. Verifique se copiou corretamente (sem espaços ou caracteres especiais).");
+        }
+        const res = await fetch('/api/deriv/authorize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: cleanToken })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to connect to Deriv API');
+        
+        const derivAccount = data.account;
+        finalLogin = derivAccount.loginid;
+        finalServer = 'Deriv ' + derivAccount.landing_company_name?.toUpperCase();
+        extState = 'DEPLOYED';
+        derivData = {
+           derivName: derivAccount.fullname,
+           derivEmail: derivAccount.email,
+           derivCurrency: derivAccount.currency,
+           derivAccountList: derivAccount.account_list,
+           derivMt5AccountList: data.mt5_login_list || []
+        };
+      } else {
+        // First try to provision through our backend proxy for MT4/MT5
+        const res = await fetch('/api/metaapi/provision', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            platform: mtPlatform,
+            login: mtLogin,
+            password: mtPassword,
+            serverName: mtServer
+          })
+        });
+        
+        const data = await res.json();
+        
+        if (!res.ok) {
+          throw new Error(data.error || 'Failed to connect to MetaAPI');
+        }
+        extAccountId = data.accountId;
+        extState = data.state;
       }
 
       // Save to Firebase
       const { doc, updateDoc } = await import('firebase/firestore');
       const { db } = await import('../lib/firebase');
       const userRef = doc(db, 'users', userData.uid);
-      await updateDoc(userRef, {
+      
+      const payload: any = {
         mtPlatform,
-        mtLogin,
+        mtLogin: finalLogin,
         mtPassword,
-        mtServer,
-        metaApiAccountId: data.accountId,
-        metaApiState: data.state
-      });
+        mtServer: finalServer,
+        metaApiAccountId: extAccountId,
+        metaApiState: extState
+      };
+      if (mtPlatform === 'deriv_api') {
+        payload.savedDerivToken = mtPassword;
+      }
+      if (derivData) {
+        Object.assign(payload, derivData);
+      }
+      await updateDoc(userRef, payload);
 
       if (onUpdate) {
-        onUpdate({ ...userData, mtPlatform, mtLogin, mtPassword, mtServer, metaApiAccountId: data.accountId, metaApiState: data.state });
+        onUpdate({ ...userData, ...payload });
       }
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
@@ -275,6 +331,9 @@ export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) 
                     decision: 'BUY', 
                     price: 100,
                     metaApiAccountId: userData?.metaApiAccountId,
+                    mtPlatform: userData?.mtPlatform,
+                    mtLogin: userData?.mtLogin,
+                    mtPassword: userData?.mtPassword,
                     settings: {
                        engineRunning: robotActive,
                        symbolSuffix: symbolSuffix,
@@ -388,14 +447,38 @@ export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) 
                 <div className="pt-4 border-t border-white/5 space-y-4">
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Ativo a Negociar</label>
-                    <input 
-                      type="text" 
-                      placeholder="Ex: EUR/USD, XAU/USD..."
-                      value={selectedAsset}
-                      onChange={(e) => setSelectedAsset(e.target.value)}
-                      onBlur={handleAssetBlur}
-                      className="w-full bg-black border border-white/10 rounded-lg p-3 text-sm text-white font-mono focus:border-brand-red outline-none transition-colors" 
-                    />
+                    <div className="relative">
+                      <select 
+                        value={selectedAsset}
+                        onChange={(e) => {
+                          setSelectedAsset(e.target.value);
+                          saveSettingsToFirebase(tradingSettings, riskPerTrade, maxPositions, e.target.value, symbolSuffix);
+                        }}
+                        className="w-full bg-black border border-white/10 rounded-lg p-3 pr-8 text-sm text-white font-mono focus:border-brand-red outline-none transition-colors appearance-none"
+                      >
+                        {userData?.mtPlatform === 'deriv_api' || (userData?.mtServer && userData?.mtServer.toLowerCase().includes('deriv')) ? (
+                           <>
+                              <option value="Boom 1000 Index">Boom 1000 Index (Deriv)</option>
+                              <option value="Crash 1000 Index">Crash 1000 Index (Deriv)</option>
+                              <option value="Boom 500 Index">Boom 500 Index (Deriv)</option>
+                              <option value="Crash 500 Index">Crash 500 Index (Deriv)</option>
+                              <option value="Volatility 75 Index">Volatility 75 Index (Deriv)</option>
+                              <option value="EUR/USD">EUR/USD</option>
+                              <option value="GBP/USD">GBP/USD</option>
+                              <option value="XAU/USD">XAU/USD</option>
+                              <option value="USD/JPY">USD/JPY</option>
+                           </>
+                        ) : (
+                           <>
+                              <option value="EUR/USD">EUR/USD</option>
+                              <option value="GBP/USD">GBP/USD</option>
+                              <option value="XAU/USD">XAU/USD (Gold)</option>
+                              <option value="USD/JPY">USD/JPY</option>
+                           </>
+                        )}
+                      </select>
+                      <ChevronRight className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none rotate-90" size={14} />
+                    </div>
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Sufixo da Corretora (MT4/5)</label>
@@ -442,14 +525,99 @@ export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) 
              <h3 className="font-black italic uppercase text-white tracking-widest text-sm mb-6 flex items-center gap-2">
                <Globe2 size={16} className="text-brand-red" /> MT4 / MT5 Server Connection
              </h3>
-             <div className="space-y-4">
-               {userData?.metaApiAccountId ? (
+            <div className="space-y-4">
+               {userData?.mtPlatform === 'deriv_api' && userData?.mtLogin ? (
+                 <div className="bg-[#ff444f]/10 border border-[#ff444f]/30 rounded-xl p-6 text-center space-y-4">
+                   <div className="w-16 h-16 bg-[#ff444f]/20 rounded-full flex items-center justify-center mx-auto mb-2">
+                     <ShieldCheck size={32} className="text-[#ff444f]" />
+                   </div>
+                   <h4 className="text-[#ff444f] font-bold uppercase tracking-widest text-lg">Deriv API Connected</h4>
+                   <p className="text-sm text-zinc-400">Titular: <span className="text-white font-mono">{userData.derivName || "Desconhecido"}</span></p>
+                   <p className="text-sm text-zinc-400">Padrão: <span className="text-white font-mono">{userData.mtLogin}</span></p>
+                   <p className="text-sm text-zinc-400">Servidor: <span className="text-white font-mono">{userData.mtServer}</span></p>
+
+                   {userData.derivAccountList && userData.derivAccountList.length > 0 && (
+                     <div className="mt-4 w-full text-left bg-black/40 p-4 rounded-xl border border-white/5">
+                       <label className="text-[10px] font-black text-white uppercase tracking-widest block mb-2 flex items-center gap-2"><Globe2 size={12} className="text-[#ff444f]" /> Contas Nativas (API Token)</label>
+                       <div className="relative">
+                         <select 
+                           value={userData.mtLogin}
+                           onChange={async (e) => {
+                               const newLogin = e.target.value;
+                               const newAcc = userData.derivAccountList.find((a: any) => a.loginid === newLogin);
+                               
+                               const { doc, updateDoc } = await import('firebase/firestore');
+                               const { db } = await import('../lib/firebase');
+                               const userRef = doc(db, 'users', userData.uid);
+                               
+                               const payload = { 
+                                  mtLogin: newLogin, 
+                                  mtServer: newAcc ? ('Deriv ' + newAcc.landing_company_name?.toUpperCase()) : userData.mtServer,
+                                  derivCurrency: newAcc ? newAcc.currency : userData.derivCurrency
+                               };
+                               await updateDoc(userRef, payload);
+                               if (onUpdate) onUpdate({ ...userData, ...payload });
+                           }}
+                           className="w-full bg-black border border-white/10 rounded-lg p-3 pr-8 text-xs text-white font-mono focus:border-[#ff444f] outline-none transition-colors appearance-none"
+                         >
+                           {userData.derivAccountList.map((acc: any) => (
+                              <option key={acc.loginid} value={acc.loginid}>
+                                {acc.loginid} ({acc.currency} / {acc.account_type === 'demo' ? 'DEMO' : acc.landing_company_name?.toUpperCase() || 'REAL'})
+                              </option>
+                           ))}
+                         </select>
+                         <ChevronRight className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none rotate-90" size={14} />
+                       </div>
+                       <p className="text-[10px] text-zinc-500 mt-2">Usado para negociar opções/multiplicadores nativos da corretora.</p>
+                     </div>
+                   )}
+                   
+                   {userData.derivMt5AccountList && userData.derivMt5AccountList.length > 0 && (
+                     <div className="mt-4 w-full text-left bg-black/40 p-4 rounded-xl border border-white/5 max-h-64 overflow-y-auto custom-scrollbar">
+                       <label className="text-[10px] font-black text-white uppercase tracking-widest block mb-3 flex items-center gap-2"><Server size={12} className="text-zinc-500" /> Contas MetaTrader 5 Disponíveis</label>
+                       <div className="space-y-2">
+                           {userData.derivMt5AccountList.map((mtAcc: any) => (
+                               <div key={mtAcc.login} className="flex justify-between items-center p-3 rounded-lg border border-white/5 bg-[#111]">
+                                  <div>
+                                      <p className="text-xs font-bold text-white uppercase flex items-center gap-2">
+                                         {mtAcc.login} 
+                                         {mtAcc.account_type === 'demo' ? (
+                                            <span className="text-[8px] bg-zinc-800 text-zinc-300 px-1.5 py-0.5 rounded">DEMO</span>
+                                         ) : (
+                                            <span className="text-[8px] bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded">REAL</span>
+                                         )}
+                                      </p>
+                                      <p className="text-[10px] text-zinc-500 uppercase mt-0.5">{mtAcc.server_info?.environment || mtAcc.server}</p>
+                                  </div>
+                                  <div className="text-right">
+                                      <p className="text-sm font-mono font-bold text-brand-red">{mtAcc.display_balance} <span className="text-[10px]">{mtAcc.currency}</span></p>
+                                      <p className="text-[8px] text-zinc-500 uppercase">{mtAcc.market_type}</p>
+                                  </div>
+                               </div>
+                           ))}
+                       </div>
+                       <p className="text-[10px] text-zinc-500 mt-3 relative pl-3">
+                         <span className="absolute left-0 top-0 text-brand-red">*</span>
+                         Para operar nas contas MT5, utilize a opção "MetaTrader 5" e a senha individual do MT5 correspondente na configuração.
+                       </p>
+                     </div>
+                   )}
+                   <button 
+                     onClick={handleDisconnectBroker}
+                     disabled={isSaving}
+                     className="w-full mt-4 bg-zinc-900 border border-[#ff444f]/30 hover:bg-[#ff444f]/10 text-[#ff444f] font-bold uppercase tracking-widest text-xs py-3 rounded-xl transition-colors disabled:opacity-50"
+                   >
+                     {isSaving ? "Desconectando..." : "Desconectar Terminal"}
+                   </button>
+                 </div>
+               ) : userData?.metaApiAccountId ? (
                  <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-6 text-center space-y-4">
                    <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-2">
                      <CheckCircle2 size={32} className="text-green-500" />
                    </div>
                    <h4 className="text-green-500 font-bold uppercase tracking-widest text-lg">Terminal Conectado</h4>
                    <p className="text-sm text-zinc-400">Conta: <span className="text-white font-mono">{mtLogin}</span> ({mtPlatform.toUpperCase()})</p>
+                   <p className="text-sm text-zinc-400">Servidor: <span className="text-white font-mono">{mtServer}</span></p>
                    <button 
                      onClick={handleDisconnectBroker}
                      disabled={isSaving}
@@ -466,48 +634,78 @@ export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) 
                     <div className="relative">
                       <select 
                         value={mtPlatform}
-                        onChange={(e) => setMtPlatform(e.target.value)}
+                        onChange={(e) => {
+                            const val = e.target.value;
+                            setMtPlatform(val);
+                            if (val === 'deriv_api' && userData?.savedDerivToken) {
+                                setMtPassword(userData.savedDerivToken);
+                            } else {
+                                setMtPassword('');
+                            }
+                            setMtLogin('');
+                            setMtServer('');
+                        }}
                         className="w-full bg-black border border-white/10 rounded-lg p-3 pr-8 text-sm text-white font-mono focus:border-brand-red outline-none transition-colors appearance-none"
                       >
                         <option value="mt5">MetaTrader 5</option>
                         <option value="mt4">MetaTrader 4</option>
+                        <option value="deriv_api">Deriv API (Token)</option>
                       </select>
                       <ChevronRight className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none rotate-90" size={14} />
                     </div>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Login (Account ID)</label>
-                    <input 
-                      type="number" 
-                      placeholder="Ex: 10029384" 
-                      value={mtLogin}
-                      onChange={(e) => setMtLogin(e.target.value)}
-                      className="w-full bg-black border border-white/10 rounded-lg p-3 text-sm text-white font-mono focus:border-brand-red outline-none transition-colors" 
-                    />
-                  </div>
+                  
+                  {mtPlatform === 'deriv_api' ? (
+                     <div className="space-y-1 col-span-2">
+                       <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Deriv API Token</label>
+                       <input 
+                         type="password" 
+                         placeholder="Ex: H5TU8g6UGpe5lDX" 
+                         value={mtPassword}
+                         onChange={(e) => setMtPassword(e.target.value)}
+                         className="w-full bg-black border border-white/10 rounded-lg p-3 text-sm text-white font-mono focus:border-brand-red outline-none transition-colors" 
+                       />
+                       <p className="text-[10px] text-zinc-500 ml-1 mt-1">Gere um token na Deriv com permissões de 'Read' e 'Trade'. Recomendado para Volatility/Boom/Crash.</p>
+                     </div>
+                  ) : (
+                    <>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Login (Account ID)</label>
+                        <input 
+                          type="number" 
+                          placeholder="Ex: 10029384" 
+                          value={mtLogin}
+                          onChange={(e) => setMtLogin(e.target.value)}
+                          className="w-full bg-black border border-white/10 rounded-lg p-3 text-sm text-white font-mono focus:border-brand-red outline-none transition-colors" 
+                        />
+                      </div>
+                    </>
+                  )}
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Password</label>
-                    <input 
-                      type="password" 
-                      placeholder="••••••••" 
-                      value={mtPassword}
-                      onChange={(e) => setMtPassword(e.target.value)}
-                      className="w-full bg-black border border-white/10 rounded-lg p-3 text-sm text-white font-mono focus:border-brand-red outline-none transition-colors" 
-                    />
+                {mtPlatform !== 'deriv_api' && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Password</label>
+                      <input 
+                        type="password" 
+                        placeholder="••••••••" 
+                        value={mtPassword}
+                        onChange={(e) => setMtPassword(e.target.value)}
+                        className="w-full bg-black border border-white/10 rounded-lg p-3 text-sm text-white font-mono focus:border-brand-red outline-none transition-colors" 
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Server</label>
+                      <input 
+                        type="text" 
+                        placeholder="Ex: Deriv-Server-01" 
+                        value={mtServer}
+                        onChange={(e) => setMtServer(e.target.value)}
+                        className="w-full bg-black border border-white/10 rounded-lg p-3 text-sm text-white font-mono focus:border-brand-red outline-none transition-colors" 
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Server</label>
-                    <input 
-                      type="text" 
-                      placeholder="Ex: Deriv-Server-01" 
-                      value={mtServer}
-                      onChange={(e) => setMtServer(e.target.value)}
-                      className="w-full bg-black border border-white/10 rounded-lg p-3 text-sm text-white font-mono focus:border-brand-red outline-none transition-colors" 
-                    />
-                  </div>
-                </div>
+                )}
                 <div className="space-y-1 mt-2">
                   <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Trade Comment (Metatrader/Corretora)</label>
                   <input 
@@ -520,7 +718,7 @@ export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) 
                 </div>
                 <button 
                   onClick={handleConnectBroker}
-                  disabled={isSaving || !mtLogin || !mtPassword || !mtServer}
+                  disabled={isSaving || !mtPassword || (mtPlatform !== 'deriv_api' && (!mtLogin || !mtServer))}
                   className="w-full bg-brand-red/10 text-brand-red border border-brand-red/30 hover:bg-brand-red/20 font-bold uppercase tracking-widest text-xs py-3 rounded-xl transition-colors disabled:opacity-50"
                 >
                   {isSaving ? "Connecting..." : saveSuccess ? "Connected Successfully" : "Connect Terminal"}

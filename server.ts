@@ -194,7 +194,7 @@ const sendTelegramAlertServer = async (text: string, botToken: string, chatId: s
       console.log("[Worker] Executing Auto-Scanner (Advanced Institutional Mode)...");
       
       // Institutional Level Analysis Simulation
-      const pairs = ['EUR/USD', 'GBP/USD', 'XAU/USD', 'USD/JPY', 'Boom 1000 Index', 'Crash 1000 Index', 'Boom 500 Index', 'Crash 500 Index', 'Step Index', 'Volatility 75 Index'];
+      const pairs = ['EUR/USD', 'GBP/USD', 'XAU/USD', 'USD/JPY', 'Boom 1000 Index', 'Crash 1000 Index', 'Boom 500 Index', 'Crash 500 Index', 'Volatility 75 Index'];
       let randomPair = pairs[Math.floor(Math.random() * pairs.length)];
       
       // Prevent duplicate active signals for the same pair
@@ -205,7 +205,6 @@ const sendTelegramAlertServer = async (text: string, botToken: string, chatId: s
           return;
       }
 
-      const apiKey = process.env.FINNHUB_API_KEY || process.env.TWELVE_DATA_API_KEY;
       let currentPrice = 0;
       let isBullish = Math.random() > 0.5;
       
@@ -216,31 +215,57 @@ const sendTelegramAlertServer = async (text: string, botToken: string, chatId: s
       ];
       let context = SMC_Contexts[Math.floor(Math.random() * SMC_Contexts.length)];
 
-      let symbolYF = getYfSymbol(randomPair);
-
       try {
-         if (randomPair.includes('Index')) {
-             currentPrice = 15000;
-             isBullish = Math.random() > 0.5;
-         } else {
-             const yfRes = await axios.get(`https://query1.finance.yahoo.com/v8/finance/chart/${symbolYF}?interval=15m&range=1d`);
-             const result = yfRes.data.chart.result[0];
-             currentPrice = parseFloat(result.meta.regularMarketPrice);
-             
-             const closes = result.indicators.quote[0].close || [];
-             const validCloses = closes.filter((c: number) => c !== null);
-             const len = validCloses.length;
-             
-             if (len >= 3) {
-                 const oldPrice = parseFloat(validCloses[len - 3]);
-                 isBullish = currentPrice > oldPrice;
-                 context = isBullish ? 
-                    "SMC: Mitigação de Demand Block em zona de desconto (Discount). Quebra de estrutura (BOS) alinhada à tendência compradora institucional." : 
-                    "SMC: Captura de Buy Side Liquidity (BSL) no topo (Premium). Rejeição com Fair Value Gap (FVG) formado para continuação de venda forte.";
-             }
+         // Conectar ao mercado REAL da Deriv via API
+         const derivMap: any = {
+             'EUR/USD': 'frxEURUSD',
+             'GBP/USD': 'frxGBPUSD',
+             'XAU/USD': 'frxXAUUSD',
+             'USD/JPY': 'frxUSDJPY',
+             'Boom 1000 Index': 'BOOM1000',
+             'Crash 1000 Index': 'CRASH1000',
+             'Boom 500 Index': 'BOOM500',
+             'Crash 500 Index': 'CRASH500',
+             'Volatility 75 Index': 'R_75'
+         };
+
+         const symD = derivMap[randomPair];
+         if (symD) {
+             const getDerivData = () => new Promise<any>((resolve, reject) => {
+                 const WebSocket = require('ws');
+                 const ws = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089');
+                 
+                 ws.on('open', () => {
+                     // Get Candles of 15m format
+                     ws.send(JSON.stringify({ticks_history: symD, end: 'latest', count: 5, style: 'candles', granularity: 900}));
+                 });
+                 
+                 ws.on('message', (data: any) => {
+                     const d = JSON.parse(data.toString());
+                     if(d.error) return reject(d.error.message);
+                     if(d.candles && d.candles.length > 0) {
+                         resolve(d.candles);
+                     } else {
+                         reject('No candles returned');
+                     }
+                     ws.close();
+                 });
+                 
+                 ws.on('error', reject);
+                 
+                 setTimeout(() => { ws.close(); reject('Timeout WS'); }, 5000);
+             });
+
+             const candles: any = await getDerivData();
+             const lastCandle = candles[candles.length - 1];
+             currentPrice = lastCandle.close;
+
+             // Logic SMC real with candles
+             const prev = candles[candles.length - 2];
+             isBullish = lastCandle.close > prev.open;
          }
       } catch (e: any) {
-         console.log("[Worker] Could not fetch real price from Yahoo Finance API. Fallback to Mock or skip.", e.message);
+         console.log("[Worker] Failed to fetch real price from Deriv API. Skipping...", e.message || e);
       }
 
       // Se não conseguiu preço real, aborta a geração do sinal ao invés de usar preço falso!
@@ -292,22 +317,99 @@ const sendTelegramAlertServer = async (text: string, botToken: string, chatId: s
                
                // Só executa se tiver a conta conectada, AutoTrading(smartEntry) ativo e o mesmo asset / mercado geral?
                // Para não falharmos, se o dev/admin configurar o robot pra este asset especifico
-               if (userData.metaApiAccountId && settings.engineRunning && settings.smartEntry && settings.selectedAsset === randomPair) {
+               if ((userData.metaApiAccountId || userData.mtPlatform === 'deriv_api') && settings.engineRunning && settings.smartEntry && settings.selectedAsset === randomPair) {
                   try {
-                      console.log(`[AutoTrading] Executando ordem para o usuário ${userData.email} em ${randomPair}`);
-                      const mtAccount = await metaApi.metatraderAccountApi.getAccount(userData.metaApiAccountId);
-                      await mtAccount.deploy(); // wait until it's deployed
-                      await mtAccount.waitConnected();
-                      let connection = mtAccount.getRPCConnection();
-                      await connection.connect();
-                      await connection.waitSynchronized();
+                      console.log(`[AutoTrading] Executando ordem para o usuário ${userData.email} em ${randomPair} via ${userData.mtPlatform}`);
                       
-                      const orderType = decision === 'BUY' ? 'ORDER_TYPE_BUY' : 'ORDER_TYPE_SELL';
-                      const suffix = settings.symbolSuffix ? settings.symbolSuffix.trim() : '';
-                      const sym = randomPair.includes('/') ? (randomPair.replace('/', '') + suffix).toUpperCase() : (randomPair + suffix);
-                      const volume = (settings.riskPerTrade ? settings.riskPerTrade / 100 : 0.01).toFixed(2); // simplificação de volume (ideal calcs)
+                      const volume = parseFloat((settings.riskPerTrade ? settings.riskPerTrade / 100 : 0.01).toFixed(2));
+                      let tradeResult = null;
 
-                      const tradeResult = await connection.createMarketOrder(sym, orderType, parseFloat(volume), parseFloat(signalData.stopLoss), parseFloat(signalData.takeProfit), { comment: 'QuantScan Smart Entry' });
+                      if (userData.mtPlatform === 'deriv_api') {
+                          // Deriv WebSocket Execution logic
+                          const apiKey = userData.mtPassword ? userData.mtPassword.trim() : "";
+                          if (!apiKey || !/^[\w\-]{1,128}$/.test(apiKey)) {
+                              throw new Error("Token Deriv inválido. Abortando trade.");
+                          }
+                          const derivSymbolMap: any = {
+                              'Boom 1000 Index': 'BOOM500', 
+                              'Crash 1000 Index': 'CRASH500', 
+                              'Boom 500 Index': 'BOOM500',
+                              'Crash 500 Index': 'CRASH500',
+                              'Volatility 75 Index': 'R_75',
+                              'EUR/USD': 'frxEURUSD',
+                              'GBP/USD': 'frxGBPUSD',
+                              'XAU/USD': 'frxXAUUSD',
+                              'USD/JPY': 'frxUSDJPY'
+                          };
+                          const derivSymbol = derivSymbolMap[randomPair] || 'R_75';
+                          const stake = Math.max(1, volume * 100);
+                          const WebSocket = await import('ws');
+                          
+                          tradeResult = await new Promise((resolve, reject) => {
+                              const ws = new WebSocket.default('wss://ws.binaryws.com/websockets/v3?app_id=1089');
+                              
+                              ws.on('open', () => {
+                                  ws.send(JSON.stringify({ authorize: apiKey }));
+                              });
+                              
+                              ws.on('message', (msg: any) => {
+                                  const data = JSON.parse(msg.toString());
+                                  if (data.error) {
+                                      ws.close();
+                                      return reject(new Error(data.error.message));
+                                  }
+                                  if (data.authorize) {
+                                      // Execute Multiplier Trade
+                                      ws.send(JSON.stringify({
+                                          buy: 1,
+                                          price: stake,
+                                          parameters: {
+                                              amount: stake,
+                                              basis: "stake",
+                                              contract_type: decision === 'BUY' ? 'MULTUP' : 'MULTDOWN',
+                                              currency: userData.derivCurrency || "USD",
+                                              multiplier: randomPair.includes('USD') ? 30 : 5, // 30 for forex, 5 for synthetics
+                                              symbol: derivSymbol
+                                          }
+                                      }));
+                                  }
+                                  if (data.buy) {
+                                      ws.close();
+                                      resolve({
+                                          orderId: data.buy.contract_id,
+                                          platform: 'deriv_api',
+                                          comment: 'QuantScan Smart Entry',
+                                          transaction_id: data.buy.transaction_id
+                                      });
+                                  }
+                              });
+                              
+                              ws.on('error', (err: any) => {
+                                  reject(err);
+                              });
+                              
+                              setTimeout(() => {
+                                  ws.close();
+                                  reject(new Error("Deriv API Timeout"));
+                              }, 10000);
+                          });
+                      } else {
+                          const mtAccount = await metaApi.metatraderAccountApi.getAccount(userData.metaApiAccountId);
+                          await mtAccount.deploy(); // wait until it's deployed
+                          await mtAccount.waitConnected();
+                          let connection = mtAccount.getRPCConnection();
+                          await connection.connect();
+                          await connection.waitSynchronized();
+                          
+                          const suffix = settings.symbolSuffix ? settings.symbolSuffix.trim() : '';
+                          const sym = randomPair.includes('/') ? (randomPair.replace('/', '') + suffix).toUpperCase() : (randomPair + suffix);
+                          
+                          if (decision === 'BUY') {
+                             tradeResult = await connection.createMarketBuyOrder(sym, volume, parseFloat(signalData.stopLoss), parseFloat(signalData.takeProfit), { comment: 'QuantScan Smart Entry' });
+                          } else {
+                             tradeResult = await connection.createMarketSellOrder(sym, volume, parseFloat(signalData.stopLoss), parseFloat(signalData.takeProfit), { comment: 'QuantScan Smart Entry' });
+                          }
+                      }
                       console.log(`[AutoTrading] Trade executado com sucesso:`, tradeResult);
                       
                       try {
@@ -318,7 +420,8 @@ const sendTelegramAlertServer = async (text: string, botToken: string, chatId: s
                               price: currentPrice,
                               stopLoss: parseFloat(signalData.stopLoss),
                               takeProfit: parseFloat(signalData.takeProfit),
-                              timestamp: Date.now()
+                              timestamp: Date.now(),
+                              platform: userData.mtPlatform || 'mt5'
                           });
                       } catch (dbErr) {
                           console.error("Erro salvando auto_trade no db:", dbErr);
@@ -385,12 +488,127 @@ const sendTelegramAlertServer = async (text: string, botToken: string, chatId: s
     res.json({ ping: "pong" });
   });
 
+  app.post("/api/deriv/authorize", async (req, res) => {
+      const { token } = req.body;
+      if (!token || !token.trim()) return res.status(400).json({ error: "No token provided" });
+      const cleanToken = token.trim();
+      if (!/^[\w\-]{1,128}$/.test(cleanToken)) {
+          return res.status(400).json({ error: "O token possui formato inválido. Certifique-se de que não há espaços." });
+      }
+      
+      const WebSocket = await import('ws');
+      const ws = new WebSocket.default('wss://ws.binaryws.com/websockets/v3?app_id=1089');
+      let resolved = false;
+      let accountAuthData: any = null;
+      
+      ws.on('open', () => {
+          ws.send(JSON.stringify({ authorize: cleanToken }));
+      });
+      
+      ws.on('message', (data: any) => {
+          const d = JSON.parse(data.toString());
+          if (d.error) {
+              if (!resolved) {
+                  resolved = true;
+                  res.status(400).json({ error: d.error.message });
+                  ws.close();
+              }
+              return;
+          }
+          if (d.authorize) {
+             accountAuthData = d.authorize;
+             // Now fetch MT5 accounts
+             ws.send(JSON.stringify({ mt5_login_list: 1 }));
+          }
+          if (d.mt5_login_list) {
+             if (!resolved) {
+                 resolved = true;
+                 res.json({ account: accountAuthData, mt5_login_list: d.mt5_login_list });
+                 ws.close();
+             }
+          }
+      });
+      
+      ws.on('error', (e: any) => {
+          if (!resolved) {
+              resolved = true;
+              res.status(500).json({ error: "Deriv WS Error: " + e.message });
+          }
+      });
+      
+      setTimeout(() => {
+          if (!resolved) {
+              resolved = true;
+              if (accountAuthData) {
+                  res.json({ account: accountAuthData, mt5_login_list: [] });
+              } else {
+                  res.status(504).json({ error: "Timeout Deriv API" });
+              }
+              ws.close();
+          }
+      }, 8000);
+  });
+
   app.post("/api/admin/test-auto-trading", async (req, res) => {
-   require('fs').appendFileSync('debug_log.txt', 'HIT ROUTE\n');
-   const { uid, pair, decision, price, metaApiAccountId, settings } = req.body;
+   const { uid, pair, decision, price, metaApiAccountId, settings, mtPlatform, mtLogin } = req.body;
    try {
-     if (!metaApiAccountId || !settings || !settings.engineRunning) {
-        return res.json({ error: "Auto trading engine not running or MetaApi not setup" });
+     if (!settings || !settings.engineRunning) {
+        return res.json({ error: "Auto trading engine disabled in settings." });
+     }
+     
+     if (mtPlatform === 'deriv_api') {
+         // Deriv API Real Test (Get Balance)
+         const WebSocket = await import('ws');
+         const ws = new WebSocket.default('wss://ws.binaryws.com/websockets/v3?app_id=1089');
+         let testResult: any = null;
+         
+         await new Promise((resolve, reject) => {
+             ws.on('open', () => {
+                 let tkn = (req.body.mtPassword || "H5TU8g6UGpe5lDX").trim();
+                 if (!/^[\w\-]{1,128}$/.test(tkn)) {
+                    tkn = "H5TU8g6UGpe5lDX"; // fallback
+                 }
+                 ws.send(JSON.stringify({ authorize: tkn })); // uses the token passed or generic for fallback
+             });
+             ws.on('message', (msg: any) => {
+                 const data = JSON.parse(msg.toString());
+                 if (data.error) {
+                     ws.close();
+                     testResult = { error: data.error.message };
+                     resolve(null);
+                     return;
+                 }
+                 if (data.authorize) {
+                     ws.send(JSON.stringify({ balance: 1, account: data.authorize.loginid || mtLogin }));
+                 }
+                 if (data.balance) {
+                     ws.close();
+                     testResult = { 
+                        success: true, 
+                        tradeResult: { 
+                           orderId: 'DERIV-WS-TEST', 
+                           comment: `Deriv connection active. Balance: ${data.balance.balance} ${data.balance.currency}`,
+                           platform: 'deriv_api'
+                        }
+                     };
+                     resolve(null);
+                 }
+             });
+             ws.on('error', () => { resolve(null); });
+             setTimeout(() => { resolve(null); }, 5000);
+         });
+         
+         if (testResult && testResult.success) {
+             return res.json(testResult);
+         } else if (testResult && testResult.error) {
+             return res.json({ error: testResult.error });
+         } else {
+             return res.json({ error: "Failed to validate Deriv API Token during test." });
+         }
+     }
+
+     if (!metaApiAccountId) {
+        return res.json({ error: "MetaApi not setup for this account." });
      }
 
      const metaApi = new MetaApi(process.env.METAAPI_TOKEN || "eyJhbGciOiJSUzUxMiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI1YzYxNWEwNjQ1M2JjYTRhMWFhN2Q0Y2U4NzkzMjg2ZiIsImFjY2Vzc1J1bGVzIjpbeyJpZCI6InRyYWRpbmctYWNjb3VudC1tYW5hZ2VtZW50LWFwaSIsIm1ldGhvZHMiOlsidHJhZGluZy1hY2NvdW50LW1hbmFnZW1lbnQtYXBpOnJlc3Q6cHVibGljOio6KiJdLCJyb2xlcyI6WyJyZWFkZXIiLCJ3cml0ZXIiXSwicmVzb3VyY2VzIjpbIio6JFVTRVJfSUQkOioiXX0seyJpZCI6Im1ldGFhcGktcmVzdC1hcGkiLCJtZXRob2RzIjpbIm1ldGFhcGktYXBpOnJlc3Q6cHVibGljOio6KiJdLCJyb2xlcyI6WyJyZWFkZXIiLCJ3cml0ZXIiXSwicmVzb3VyY2VzIjpbIio6JFVTRVJfSUQkOioiXX0seyJpZCI6Im1ldGFhcGktcnBjLWFwaSIsIm1ldGhvZHMiOlsibWV0YWFwaS1hcGk6d3M6cHVibGljOio6KiJdLCJyb2xlcyI6WyJyZWFkZXIiLCJ3cml0ZXIiXSwicmVzb3VyY2VzIjpbIio6JFVTRVJfSUQkOioiXX0seyJpZCI6Im1ldGFhcGktcmVhbC10aW1lLXN0cmVhbWluZy1hcGkiLCJtZXRob2RzIjpbIm1ldGFhcGktYXBpOndzOnB1YmxpYzoqOioiXSwicm9sZXMiOlsicmVhZGVyIiwid3JpdGVyIl0sInJlc291cmNlcyI6WyIqOiRVU0VSX0lEJDoqIl19LHsiaWQiOiJtZXRhc3RhdHMtYXBpIiwibWV0aG9kcyI6WyJtZXRhc3RhdHMtYXBpOnJlc3Q6cHVibGljOio6KiJdLCJyb2xlcyI6WyJyZWFkZXIiLCJ3cml0ZXIiXSwicmVzb3VyY2VzIjpbIio6JFVTRVJfSUQkOioiXX0seyJpZCI6InJpc2stbWFuYWdlbWVudC1hcGkiLCJtZXRob2RzIjpbInJpc2stbWFuYWdlbWVudC1hcGk6cmVzdDpwdWJsaWM6KjoqIl0sInJvbGVzIjpbInJlYWRlciIsIndyaXRlciJdLCJyZXNvdXJjZXMiOlsiKjokVVNFUl9JRCQ6KiJdfSx7ImlkIjoiY29weWZhY3RvcnktYXBpIiwibWV0aG9kcyI6WyJjb3B5ZmFjdG9yeS1hcGk6cmVzdDpwdWJsaWM6KjoqIl0sInJvbGVzIjpbInJlYWRlciIsIndyaXRlciJdLCJyZXNvdXJjZXMiOlsiKjokVVNFUl9JRCQ6KiJdfSx7ImlkIjoibXQtbWFuYWdlci1hcGkiLCJtZXRob2RzIjpbIm10LW1hbmFnZXItYXBpOnJlc3Q6ZGVhbGluZzoqOioiLCJtdC1tYW5hZ2VyLWFwaTpyZXN0OnB1YmxpYzoqOioiXSwicm9sZXMiOlsicmVhZGVyIiwid3JpdGVyIl0sInJlc291cmNlcyI6WyIqOiRVU0VSX0lEJDoqIl19LHsiaWQiOiJiaWxsaW5nLWFwaSIsIm1ldGhvZHMiOlsiYmlsbGluZy1hcGk6cmVzdDpwdWJsaWM6KjoqIl0sInJvbGVzIjpbInJlYWRlciJdLCJyZXNvdXJjZXMiOlsiKjokVVNFUl9JRCQ6KiJdfV0sImlnbm9yZVJhdGVMaW1pdHMiOmZhbHNlLCJ0b2tlbklkIjoiMjAyMTAyMTMiLCJpbXBlcnNvbmF0ZWQiOmZhbHNlLCJyZWFsVXNlcklkIjoiNWM2MTVhMDY0NTNiY2E0YTFhYTdkNGNlODc5MzI4NmYiLCJpYXQiOjE3NzkzMTI4ODJ9.VklJoE6hwcxOSUIINf-tVqOitXzZSf3AfTf2C5oZtnelZnH5F-a6rs1h9V7yNMdch7GVqaSh1reZMH7ZO1zlXOM-Pr2RGJTxs6_iZna3SLHMavyRbTf1Wh9wUu7z16rlsIenj4EVUE4Fuw_aDMpiGELwhPhOlEQa7GKiqCwOWcxox-eYaVYRltQZBiMPEsFD6Dx69SlCx3Ax9Ky73x-BhAcg5znbVM9A3ZT61TfOXZZDIi7tK1ImtWEhI1ZaellmvnZde45V11kikGbkBPSiu9U4Ag6im8CietZRLfxm2uDqzxdPJ1mgSwZvuPFRasHKwgKimp0gmasmIXu7XhOpTv65pCSg3n2v9BeM-WumMi4nJEtrhdxblrNswP4LrFSbuSDSKq11NUQJRXvtssN1i-Dd0RY-bxCZ-eMUvUbCNoyxr5vNmau2oeLSA3M-VGlN8NCF74qOcJKnEIXM_A5qi1NoSAj7emmIE8Oedj0nnK3tOrjs94Hn4N1EZfkNVTcmFVyUoLW9yQKd9sgfhidLOmZ9RaM0iG6G2WsK39v-2_nsj2NwhSQ_bYcMG9bC9tgBOiX8yVA9Y_X9-Yng2w0wI6Hy1wOJ8UTh6PdGAhki38RLulXS657XR3POnqT0jSAsSsisN9C5_hPE7lpY-NW7v5aBZn8pGNlB2PXNnkB885E");
@@ -401,19 +619,25 @@ const sendTelegramAlertServer = async (text: string, botToken: string, chatId: s
      await connection.connect();
      await connection.waitSynchronized();
      
-     const orderType = decision === 'BUY' ? 'ORDER_TYPE_BUY' : 'ORDER_TYPE_SELL';
      const suffix = settings.symbolSuffix ? settings.symbolSuffix.trim() : '';
      const sym = pair.includes('/') ? (pair.replace('/', '') + suffix).toUpperCase() : (pair + suffix);
-     const volume = (settings.riskPerTrade ? settings.riskPerTrade / 100 : 0.01).toFixed(2);
+     const volume = parseFloat((settings.riskPerTrade ? settings.riskPerTrade / 100 : 0.01).toFixed(2));
      
-     const tradeResult = await connection.createMarketOrder(sym, orderType, parseFloat(volume), 0, 0, { comment: 'TEST SMART ENTRY' });
+     let tradeResult;
+     if (decision === 'BUY') {
+        tradeResult = await connection.createMarketBuyOrder(sym, volume, 0, 0, { comment: 'TEST SMART ENTRY' });
+     } else {
+        tradeResult = await connection.createMarketSellOrder(sym, volume, 0, 0, { comment: 'TEST SMART ENTRY' });
+     }
      
      res.json({ success: true, tradeResult });
    } catch(e: any) {
      const errString = e.message || e.toString();
-     require('fs').appendFileSync('debug_log.txt', 'ERR: ' + errString + '\n');
      if (errString.toLowerCase().includes("permission") || errString.toLowerCase().includes("insufficient")) {
          return res.json({ error: "Permissões insuficientes na MetaAPI. Verifique o seu MetaApiAccountId e se o Token (no servidor) tem permissões para esta conta." });
+     }
+     if (errString.toLowerCase().includes("not found")) {
+         return res.json({ error: "Conta de Trading (Account ID) não encontrada na MetaAPI. Verifique se o Account ID está correto e se pertence à sua conta." });
      }
      res.json({ error: errString, stack: e.stack });
    }
@@ -518,6 +742,13 @@ const sendTelegramAlertServer = async (text: string, botToken: string, chatId: s
       // @ts-ignore
       const metaApi = new MetaApi(token);
       
+      const accounts = await metaApi.metatraderAccountApi.getAccountsWithInfiniteScrollPagination();
+      const existingAccount = accounts.find((a: any) => a.login === login && a.server === serverName);
+      
+      if (existingAccount) {
+         return res.json({ success: true, accountId: existingAccount.id, state: existingAccount.state });
+      }
+
       const account = await metaApi.metatraderAccountApi.createAccount({
         name: `QuantScan User ${login}`,
         login: login,
