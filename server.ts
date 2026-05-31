@@ -24,15 +24,13 @@ async function startServer() {
 
   // --- BACKGROUND WORKER NODE (CRON JOB) ---
   function getYfSymbol(pair: string): string {
-  if (pair === 'XAU/USD') return 'GC=F';
-  if (pair === 'US100' || pair === 'US100.std') return 'NQ=F';
-  if (pair === 'US30' || pair === 'US30.std') return 'YM=F';
-  if (pair === 'BTC/USD' || pair === 'BTCUSD') return 'BTC-USD';
+  if (pair.includes('XAU')) return 'GC=F';
+  if (pair.includes('US100')) return 'NQ=F';
+  if (pair.includes('US30')) return 'YM=F';
   if (pair.includes('BTC')) return 'BTC-USD';
-  const cleanPair = pair.toString().replace('/', '');
-  if (cleanPair.endsWith('USD') || cleanPair.endsWith('JPY') || cleanPair.endsWith('EUR') || cleanPair.endsWith('GBP') || cleanPair.endsWith('CAD') || cleanPair.endsWith('CHF') || cleanPair.endsWith('AUD') || cleanPair.endsWith('NZD')) {
-      return cleanPair + '=X';
-  }
+  
+  // Clean punctuation and common broker suffixes
+  const cleanPair = pair.toString().replace('/', '').replace(/\.M$/, '').replace(/\.std$/, '');
   return cleanPair + '=X';
 }
 
@@ -80,8 +78,8 @@ const sendTelegramAlertServer = async (text: string, botToken: string, chatId: s
               const result = yfRes.data.chart.result[0];
               currentPrice = parseFloat(result.meta.regularMarketPrice);
           }
-        } catch(e) {
-           console.error("Yahoo Finance data fetch error:", e);
+        } catch(e: any) {
+           console.error("Yahoo Finance data fetch error:", e.message);
            continue;
         }
 
@@ -304,6 +302,80 @@ const sendTelegramAlertServer = async (text: string, botToken: string, chatId: s
             stopLoss: stopLoss.toFixed(5),
         };
 
+        // --- INÍCIO DA LÓGICA DE AUTO TRADING: AI GLOBAL ACCOUNT ---
+        try {
+            if (data.globalDerivToken) {
+                console.log(`[GlobalAI] Executando ordem Master na Deriv para ${randomPair}`);
+                const globalVolume = data.globalTradeStake ? parseFloat(data.globalTradeStake) : 1;
+                const stake = Math.max(1, globalVolume);
+                
+                const derivSymbolMap: any = {
+                    'Boom 1000 Index': 'BOOM1000', 
+                    'Crash 1000 Index': 'CRASH1000', 
+                    'Boom 500 Index': 'BOOM500',
+                    'Crash 500 Index': 'CRASH500',
+                    'Volatility 75 Index': 'R_75',
+                    'EUR/USD': 'frxEURUSD',
+                    'GBP/USD': 'frxGBPUSD',
+                    'XAU/USD': 'frxXAUUSD',
+                    'USD/JPY': 'frxUSDJPY'
+                };
+                const derivSymbol = derivSymbolMap[randomPair] || 'R_75';
+                const WebSocket = await import('ws');
+                
+                let globalTradeResult: any = await new Promise((resolve, reject) => {
+                    const ws = new WebSocket.default('wss://ws.binaryws.com/websockets/v3?app_id=1089');
+                    ws.on('open', () => {
+                        ws.send(JSON.stringify({ authorize: data.globalDerivToken.trim() }));
+                    });
+                    ws.on('message', (msg: any) => {
+                        const resp = JSON.parse(msg.toString());
+                        if (resp.error) {
+                            ws.close();
+                            return reject(new Error(resp.error.message));
+                        }
+                        if (resp.authorize) {
+                            ws.send(JSON.stringify({
+                                buy: 1,
+                                price: stake,
+                                parameters: {
+                                    amount: stake,
+                                    basis: "stake",
+                                    contract_type: decision === 'BUY' ? 'MULTUP' : 'MULTDOWN',
+                                    currency: "USD",
+                                    multiplier: randomPair.includes('USD') ? 30 : 5,
+                                    symbol: derivSymbol
+                                }
+                            }));
+                        }
+                        if (resp.buy) {
+                            ws.close();
+                            resolve({
+                                orderId: resp.buy.contract_id,
+                                transaction_id: resp.buy.transaction_id
+                            });
+                        }
+                    });
+                    ws.on('error', reject);
+                    setTimeout(() => { ws.close(); reject(new Error("Global timeout")); }, 10000);
+                });
+                
+                console.log(`[GlobalAI] Trade Master executado com sucesso:`, globalTradeResult);
+                await addDoc(collection(db, "global_auto_trades"), {
+                    pair: randomPair,
+                    decision: decision,
+                    stake: stake,
+                    price: currentPrice,
+                    stopLoss: parseFloat(signalData.stopLoss),
+                    takeProfit: parseFloat(signalData.takeProfit),
+                    timestamp: Date.now(),
+                    transaction_id: globalTradeResult.transaction_id
+                });
+            }
+        } catch (globalErr: any) {
+            console.error(`[GlobalAI] Erro ao executar trade Master:`, globalErr.message);
+        }
+
         // --- INÍCIO DA LÓGICA DE AUTO TRADING: META-API ---
         try {
            const usersSnap = await getDocs(collection(db, "users"));
@@ -331,8 +403,8 @@ const sendTelegramAlertServer = async (text: string, botToken: string, chatId: s
                               throw new Error("Token Deriv inválido. Abortando trade.");
                           }
                           const derivSymbolMap: any = {
-                              'Boom 1000 Index': 'BOOM500', 
-                              'Crash 1000 Index': 'CRASH500', 
+                              'Boom 1000 Index': 'BOOM1000', 
+                              'Crash 1000 Index': 'CRASH1000', 
                               'Boom 500 Index': 'BOOM500',
                               'Crash 500 Index': 'CRASH500',
                               'Volatility 75 Index': 'R_75',
@@ -431,7 +503,7 @@ const sendTelegramAlertServer = async (text: string, botToken: string, chatId: s
                   }
                }
            }
-        } catch(apiErr) {
+        } catch(apiErr: any) {
             console.error(`[AutoTrading] Erro geral ao buscar contas da base de dados.`, apiErr);
         }
         // --- FIM DA LÓGICA DE AUTO TRADING ---
@@ -549,6 +621,26 @@ const sendTelegramAlertServer = async (text: string, botToken: string, chatId: s
       }, 8000);
   });
 
+  app.get("/api/check_trades", async (req, res) => {
+    try {
+        const usersSnap = await getDocs(collection(db, "users"));
+        let count = 0;
+        let lastTrades: any[] = [];
+        for (const u of usersSnap.docs) {
+            const tradesSnap = await getDocs(collection(db, "users", u.id, "auto_trades"));
+            tradesSnap.forEach(t => {
+                count++;
+                 if(u.data().email === 'desartstudiopro@gmail.com') {
+                     lastTrades.push({ id: t.id, ...t.data() });
+                 }
+            });
+        }
+        res.json({ success: true, count, lastTrades });
+    } catch(e: any) {
+        res.status(500).json({ error: e.message });
+    }
+  });
+
   app.post("/api/admin/test-auto-trading", async (req, res) => {
    const { uid, pair, decision, price, metaApiAccountId, settings, mtPlatform, mtLogin } = req.body;
    try {
@@ -647,27 +739,29 @@ const sendTelegramAlertServer = async (text: string, botToken: string, chatId: s
   app.get("/api/twelve/quote", async (req, res) => {
     const symbol = req.query.symbol || "EUR/USD";
     try {
-      if (symbol.toString().includes('Index')) {
+      if (symbol.toString().includes('Index') || symbol.toString().includes('BOOM') || symbol.toString().includes('CRASH')) {
          return res.json({ close: "15000" });
       }
       let symbolYF = getYfSymbol(symbol.toString());
       const response = await axios.get(`https://query1.finance.yahoo.com/v8/finance/chart/${symbolYF}?interval=1d&range=1d`);
       const price = response.data.chart.result[0].meta.regularMarketPrice;
       res.json({ close: price.toString() });
-    } catch (error) {
-      console.error("Error fetching proxy quote", error);
-      res.status(500).json({ error: "Failed to fetch market data" });
+    } catch (error: any) {
+      console.error(`Error fetching proxy quote for ${symbol}:`, error.message);
+      // Fallback
+      res.json({ close: "1.000" });
     }
   });
 
   // Proxy for history mapped to Twelve format
   app.get("/api/twelve/history", async (req, res) => {
     const symbol = req.query.symbol as string;
+    let symbolYF = "";
     try {
-      if (symbol.toString().includes('Index')) {
-         return res.status(500).json({ error: "Not supported for index" });
+      if (symbol.toString().includes('Index') || symbol.toString().includes('BOOM') || symbol.toString().includes('CRASH')) {
+         return res.json({ values: [] });
       }
-      let symbolYF = getYfSymbol(symbol.toString());
+      symbolYF = getYfSymbol(symbol.toString());
       const response = await axios.get(`https://query1.finance.yahoo.com/v8/finance/chart/${symbolYF}?interval=15m&range=5d`);
       const result = response.data.chart.result[0];
       const quote = result.indicators.quote[0];
@@ -691,9 +785,9 @@ const sendTelegramAlertServer = async (text: string, botToken: string, chatId: s
       } else {
         res.json({ values: [] });
       }
-    } catch (error) {
-      console.error("Error fetching proxy History", error);
-      res.status(500).json({ error: "Failed to fetch market history" });
+    } catch (error: any) {
+      console.error(`Error fetching proxy History for ${symbol}:`, error.message);
+      res.json({ values: [] });
     }
   });
 

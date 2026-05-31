@@ -149,8 +149,8 @@ export const checkHistoricalSignalResult = async (signal: Signal): Promise<strin
           }
        }
     }
-  } catch (e) {
-    console.error("Historical check error", e);
+  } catch (e: any) {
+    console.error("Historical check error:", e.message);
   }
   return null;
 };
@@ -227,8 +227,8 @@ export const fetchChartData = async (symbol: string): Promise<{ time: number, op
           close: parseFloat(candle.close)
         }));
     }
-  } catch (e) {
-    console.warn("Error fetching chart data", e);
+  } catch (e: any) {
+    console.warn("Error fetching chart data:", e.message);
   }
   return null;
 };
@@ -321,8 +321,8 @@ export const fetchCurrentPrice = async (symbol: string): Promise<number | null> 
       const price = parseFloat(response.data.close);
       if (!isNaN(price)) return price;
     }
-  } catch (e) {
-    console.error("Error fetching TWELVE DATA price", e);
+  } catch (e: any) {
+    console.error("Error fetching TWELVE DATA price:", e.message);
   }
   
   return null;

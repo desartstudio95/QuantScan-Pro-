@@ -39,6 +39,9 @@ export const AdminDashboard: React.FC = () => {
 
   const [telegramBotToken, setTelegramBotToken] = useState('');
   const [telegramChatId, setTelegramChatId] = useState('');
+  
+  const [globalDerivToken, setGlobalDerivToken] = useState('');
+  const [globalTradeStake, setGlobalTradeStake] = useState(1);
 
   useEffect(() => {
     if (autoScannerActive) {
@@ -101,6 +104,8 @@ export const AdminDashboard: React.FC = () => {
         setTelegramChatId(docSnap.data().telegramChatId || '');
         setAutoScannerActive(docSnap.data().autoScannerActive || false);
         setAutoScannerInterval(docSnap.data().autoScannerInterval || 15);
+        setGlobalDerivToken(docSnap.data().globalDerivToken || '');
+        setGlobalTradeStake(docSnap.data().globalTradeStake || 1);
       }
     }, (error) => {
       console.warn("Failed to listen to settings:", error);
@@ -124,7 +129,9 @@ export const AdminDashboard: React.FC = () => {
         telegramBotToken,
         telegramChatId,
         autoScannerActive,
-        autoScannerInterval
+        autoScannerInterval,
+        globalDerivToken,
+        globalTradeStake
       }, { merge: true });
       alert('Configurações salvas com sucesso!');
     } catch (err) {
@@ -385,6 +392,37 @@ export const AdminDashboard: React.FC = () => {
                      onChange={(e) => setTelegramChatId(e.target.value)}
                      className="bg-white/5 border border-white/10 rounded-lg p-2.5 text-white outline-none w-full text-xs font-mono"
                      placeholder="Ex: -1001234567890"
+                   />
+                </div>
+             </div>
+          </div>
+          
+          <div className="space-y-4 bg-black/20 p-4 rounded-xl border border-white/5">
+             <div className="flex items-center gap-2 mb-4">
+                <span className="text-sm font-bold text-white uppercase tracking-wider">Super Administrator - Global AI Trading</span>
+             </div>
+             <p className="text-xs text-zinc-400 mb-4">
+                Configure a conta Master (Deriv API Token) onde a Inteligência Artificial fará a execução automática e permanente de todas as Smart Entries geradas.
+             </p>
+             <div className="space-y-4">
+                <div>
+                   <label className="text-[10px] font-black uppercase text-zinc-500 tracking-widest block mb-1">Global Deriv API Token (Master)</label>
+                   <input
+                     type="text"
+                     value={globalDerivToken}
+                     onChange={(e) => setGlobalDerivToken(e.target.value)}
+                     className="bg-white/5 border border-white/10 rounded-lg p-2.5 text-white outline-none w-full text-xs font-mono"
+                     placeholder="Cole o token da Deriv aqui"
+                   />
+                </div>
+                <div>
+                   <label className="text-[10px] font-black uppercase text-zinc-500 tracking-widest block mb-1">Stake Base por Operação (USD)</label>
+                   <input
+                     type="number"
+                     step="0.01"
+                     value={globalTradeStake}
+                     onChange={(e) => setGlobalTradeStake(parseFloat(e.target.value) || 1)}
+                     className="bg-white/5 border border-white/10 rounded-lg p-2.5 text-white outline-none w-full text-xs font-mono"
                    />
                 </div>
              </div>
