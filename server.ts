@@ -229,9 +229,11 @@ const sendTelegramAlertServer = async (text: string, botToken: string, chatId: s
 
          const symD = derivMap[randomPair];
          if (symD) {
-             const getDerivData = () => new Promise<any>((resolve, reject) => {
-                 const WebSocket = require('ws');
-                 const ws = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089');
+             const getDerivData = () => new Promise<any>(async (resolve, reject) => {
+                 try {
+                     const WebSocketModule = await import('ws');
+                     const WebSocket = WebSocketModule.default || WebSocketModule;
+                     const ws = new (WebSocket as any)('wss://ws.binaryws.com/websockets/v3?app_id=1089');
                  
                  ws.on('open', () => {
                      // Get Candles of 15m format
@@ -252,6 +254,9 @@ const sendTelegramAlertServer = async (text: string, botToken: string, chatId: s
                  ws.on('error', reject);
                  
                  setTimeout(() => { ws.close(); reject('Timeout WS'); }, 5000);
+                 } catch (e) {
+                     reject(e);
+                 }
              });
 
              const candles: any = await getDerivData();
@@ -361,7 +366,7 @@ const sendTelegramAlertServer = async (text: string, botToken: string, chatId: s
                 });
                 
                 console.log(`[GlobalAI] Trade Master executado com sucesso:`, globalTradeResult);
-                await addDoc(collection(db, "global_auto_trades"), {
+                await addDoc(collection(db, "users", "global", "auto_trades"), {
                     pair: randomPair,
                     decision: decision,
                     stake: stake,
@@ -391,9 +396,31 @@ const sendTelegramAlertServer = async (text: string, botToken: string, chatId: s
                // Para não falharmos, se o dev/admin configurar o robot pra este asset especifico
                if ((userData.metaApiAccountId || userData.mtPlatform === 'deriv_api') && settings.engineRunning && settings.smartEntry && settings.selectedAsset === randomPair) {
                   try {
+                      // CHECK TRADING HOURS
+                      if (settings.tradingHoursStart && settings.tradingHoursEnd) {
+                         const tzNow = new Date();
+                         const hc = tzNow.getUTCHours();
+                         const mc = tzNow.getUTCMinutes();
+                         const tc = hc * 60 + mc;
+                         
+                         const [hs, ms] = settings.tradingHoursStart.split(':').map(Number);
+                         const ts = hs * 60 + ms;
+                         const [he, me] = settings.tradingHoursEnd.split(':').map(Number);
+                         const te = he * 60 + me;
+                         
+                         if (te < ts) { // crosses midnight
+                           if (tc < ts && tc > te) continue; // skip trading
+                         } else {
+                           if (tc < ts || tc > te) continue; // skip trading
+                         }
+                      }
+
                       console.log(`[AutoTrading] Executando ordem para o usuário ${userData.email} em ${randomPair} via ${userData.mtPlatform}`);
                       
-                      const volume = parseFloat((settings.riskPerTrade ? settings.riskPerTrade / 100 : 0.01).toFixed(2));
+                      let volume = parseFloat((settings.riskPerTrade ? settings.riskPerTrade / 100 : 0.01).toFixed(2));
+                      if (settings.lotType === 'fixed') volume = parseFloat(settings.fixedLot || 0.01);
+                      if (settings.breakEvenEnabled) console.log(`[AutoTrading] Break Even Track habilitado para ${userData.email}`);
+                      
                       let tradeResult = null;
 
                       if (userData.mtPlatform === 'deriv_api') {
@@ -488,7 +515,7 @@ const sendTelegramAlertServer = async (text: string, botToken: string, chatId: s
                           await addDoc(collection(db, "users", userSnap.id, "auto_trades"), {
                               pair: randomPair,
                               decision: decision,
-                              volume: parseFloat(volume),
+                              volume: volume,
                               price: currentPrice,
                               stopLoss: parseFloat(signalData.stopLoss),
                               takeProfit: parseFloat(signalData.takeProfit),
@@ -713,7 +740,9 @@ const sendTelegramAlertServer = async (text: string, botToken: string, chatId: s
      
      const suffix = settings.symbolSuffix ? settings.symbolSuffix.trim() : '';
      const sym = pair.includes('/') ? (pair.replace('/', '') + suffix).toUpperCase() : (pair + suffix);
-     const volume = parseFloat((settings.riskPerTrade ? settings.riskPerTrade / 100 : 0.01).toFixed(2));
+     
+     let volume = parseFloat((settings.riskPerTrade ? settings.riskPerTrade / 100 : 0.01).toFixed(2));
+     if (settings.lotType === 'fixed') volume = parseFloat(settings.fixedLot || 0.01);
      
      let tradeResult;
      if (decision === 'BUY') {

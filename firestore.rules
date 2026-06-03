@@ -132,6 +132,11 @@ service cloud.firestore {
         allow read, write: if true;
     }
     
+    // Global Auto Trades Collection
+    match /global_auto_trades/{document=**} {
+      allow read, write: if true;
+    }
+    
     // --- Telegram Active Signals (Usado pelo background worker) ---
     match /telegram_active_signals/{document=**} {
       allow read, write: if true; 

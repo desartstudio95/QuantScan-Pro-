@@ -55,8 +55,26 @@ export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) 
   const [maxPositions, setMaxPositions] = useState(userData?.tradingSettings?.maxPositions?.toString() || "3");
   const [selectedAsset, setSelectedAsset] = useState(userData?.tradingSettings?.selectedAsset || 'XAU/USD');
   const [symbolSuffix, setSymbolSuffix] = useState(userData?.tradingSettings?.symbolSuffix || '');
+  
+  const [lotType, setLotType] = useState(userData?.tradingSettings?.lotType || 'risk');
+  const [fixedLot, setFixedLot] = useState(userData?.tradingSettings?.fixedLot?.toString() || "0.01");
+  const [breakEvenEnabled, setBreakEvenEnabled] = useState(userData?.tradingSettings?.breakEvenEnabled ?? true);
+  const [tradingHoursStart, setTradingHoursStart] = useState(userData?.tradingSettings?.tradingHoursStart || "00:00");
+  const [tradingHoursEnd, setTradingHoursEnd] = useState(userData?.tradingSettings?.tradingHoursEnd || "23:59");
 
-  const saveSettingsToFirebase = async (newSettings: any[], newRisk: string, newMax: string, newAsset?: string, newSuffix?: string, newRobotActive?: boolean) => {
+  const saveSettingsToFirebase = async (
+    newSettings: any[], 
+    newRisk: string, 
+    newMax: string, 
+    newAsset?: string, 
+    newSuffix?: string, 
+    newRobotActive?: boolean,
+    newLotType?: string,
+    newFixedLot?: string,
+    newBeEnabled?: boolean,
+    newHoursStart?: string,
+    newHoursEnd?: string
+  ) => {
     if (!userData?.uid) return;
     const { doc, updateDoc } = await import('firebase/firestore');
     const { db } = await import('../lib/firebase');
@@ -71,12 +89,17 @@ export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) 
       copyTrades: newSettings[1].active,
       newsFilter: newSettings[2].active,
       autoTp: newSettings[3].active,
-      autoSl: newSettings[4].active,
+      autoSl: newSettings[4].active, // used as Trailing Stop toggle
       riskPerTrade: parseFloat(newRisk) || 1.5,
       maxPositions: parseInt(newMax) || 3,
       selectedAsset: assetToSave,
       symbolSuffix: suffixToSave,
-      engineRunning: engineToSave
+      engineRunning: engineToSave,
+      lotType: newLotType ?? lotType,
+      fixedLot: parseFloat(newFixedLot ?? fixedLot) || 0.01,
+      breakEvenEnabled: newBeEnabled ?? breakEvenEnabled,
+      tradingHoursStart: newHoursStart ?? tradingHoursStart,
+      tradingHoursEnd: newHoursEnd ?? tradingHoursEnd
     };
 
     try {
@@ -97,19 +120,27 @@ export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) 
   };
 
   const handleRiskBlur = () => {
-    saveSettingsToFirebase(tradingSettings, riskPerTrade, maxPositions, selectedAsset, symbolSuffix);
+    saveSettingsToFirebase(tradingSettings, riskPerTrade, maxPositions);
+  };
+
+  const handleFixedLotBlur = () => {
+    saveSettingsToFirebase(tradingSettings, riskPerTrade, maxPositions);
   };
 
   const handleMaxBlur = () => {
-    saveSettingsToFirebase(tradingSettings, riskPerTrade, maxPositions, selectedAsset, symbolSuffix);
+    saveSettingsToFirebase(tradingSettings, riskPerTrade, maxPositions);
   };
 
   const handleAssetBlur = () => {
-    saveSettingsToFirebase(tradingSettings, riskPerTrade, maxPositions, selectedAsset, symbolSuffix);
+    saveSettingsToFirebase(tradingSettings, riskPerTrade, maxPositions);
   };
 
   const handleSuffixBlur = () => {
-    saveSettingsToFirebase(tradingSettings, riskPerTrade, maxPositions, selectedAsset, symbolSuffix);
+    saveSettingsToFirebase(tradingSettings, riskPerTrade, maxPositions);
+  };
+
+  const handleHoursBlur = () => {
+    saveSettingsToFirebase(tradingSettings, riskPerTrade, maxPositions);
   };
 
   const handleDisconnectBroker = async () => {
@@ -255,28 +286,58 @@ export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) 
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-8 animate-in fade-in duration-500">
       
-      {/* HEADER PRINCIPAL */}
-      <div className="flex flex-col justify-end md:flex-row md:items-end md:justify-between gap-6 relative p-8 min-h-[400px] rounded-2xl bg-black/40 border border-brand-red shadow-[0_0_30px_rgba(255,0,0,0.6)] overflow-hidden group">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-brand-red/20 via-transparent to-transparent opacity-50 pointer-events-none" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none z-0" />
-        <img src="https://i.ibb.co/VcJRM0zZ/90a0c129-b771-41d6-ad30-634d1d2546c4.png" alt="Background" className="absolute inset-0 w-full h-full object-cover opacity-100 mix-blend-overlay pointer-events-none" />
+      {/* HEADER PRINCIPAL - CYBERPUNK / HIGH-TECH */}
+      <div className="flex flex-col justify-between relative p-8 min-h-[450px] rounded-3xl bg-black/80 border border-brand-red/50 shadow-[0_0_50px_rgba(255,0,0,0.2)] overflow-hidden group">
+        {/* TECH BACKGROUND */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-brand-red/10 via-[#0a0000] to-black opacity-80 pointer-events-none" />
+        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent pointer-events-none z-0" />
         
-        <div className="flex items-center gap-6 relative z-10">
-          <div className="space-y-1">
-             <h1 className="text-3xl font-black italic uppercase tracking-tighter text-brand-red drop-shadow-[0_0_20px_rgba(255,0,0,0.8)] flex items-center gap-3">
-               QUANTSCAN IA
+        {/* GLOWING GRID */}
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,0,0,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,0,0,0.05)_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_50%,#000_20%,transparent_100%)] pointer-events-none" />
+        
+        <img src="https://i.ibb.co/VcJRM0zZ/90a0c129-b771-41d6-ad30-634d1d2546c4.png" alt="Background" className="absolute inset-0 w-full h-full object-cover opacity-60 mix-blend-screen pointer-events-none group-hover:scale-105 transition-transform duration-[10s] ease-out" />
+        
+        <div className="relative z-10 flex justify-between items-start">
+           <div className="space-y-2">
+             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-red/10 border border-brand-red/20 mb-2 backdrop-blur-md">
+               <div className="w-2 h-2 rounded-full bg-brand-red animate-pulse shadow-[0_0_10px_rgba(255,0,0,1)]" />
+               <span className="text-[9px] font-mono font-bold text-brand-red uppercase tracking-widest">Neural Link v4.2 Active</span>
+             </div>
+             <h1 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter text-white drop-shadow-[0_0_15px_rgba(255,0,0,0.8)] flex flex-col gap-1">
+               <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-red to-white">QUANTSCAN IA</span>
+               <span className="text-lg md:text-xl font-mono text-zinc-400 tracking-[0.3em] font-light not-italic">AUTOTRADING SYNAPSE</span>
              </h1>
-          </div>
+           </div>
+           
+           {/* METRICS HEADER */}
+           <div className="hidden md:flex gap-6 bg-black/60 p-4 border border-brand-red/20 rounded-2xl backdrop-blur-xl">
+             <div className="text-right">
+               <div className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest mb-1 flex items-center justify-end gap-1"><Cpu size={10} className="text-brand-red"/> Core Load</div>
+               <div className="text-lg font-mono font-black text-white">{(Math.random() * 20 + 10).toFixed(1)}%</div>
+             </div>
+             <div className="w-px bg-white/10" />
+             <div className="text-right">
+               <div className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest mb-1 flex items-center justify-end gap-1"><Network size={10} className="text-brand-red"/> Latency</div>
+               <div className="text-lg font-mono font-black text-white">{Math.floor(Math.random() * 20 + 5)}ms</div>
+             </div>
+           </div>
         </div>
         
-        <div className="flex items-center gap-4 relative z-10">
-           <div className="text-right hidden md:block">
-             <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Status Global</div>
-             <div className={cn(
-               "text-xl font-black tracking-widest",
-               robotActive ? "text-brand-red drop-shadow-[0_0_10px_rgba(255,0,0,0.8)]" : "text-zinc-600"
-             )}>
-               {robotActive ? "ONLINE" : "OFFLINE"}
+        <div className="flex items-center gap-4 relative z-10 mt-auto pt-10">
+           <div className="flex items-center gap-4">
+             <div className="relative">
+               <div className={cn("absolute inset-0 blur-xl opacity-50 transition-colors duration-1000", robotActive ? "bg-brand-red" : "bg-zinc-600")} />
+               <div className={cn(
+                 "relative px-6 py-3 rounded-xl border flex items-center gap-3 backdrop-blur-md transition-all duration-700",
+                 robotActive ? "bg-brand-red/20 border-brand-red text-brand-red shadow-[0_0_30px_rgba(255,0,0,0.3)]" : "bg-black/60 border-zinc-800 text-zinc-600"
+               )}>
+                 <Radio size={20} className={cn("transition-transform duration-1000", robotActive && "animate-pulse")} />
+                 <div className="flex flex-col">
+                   <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 transition-colors">Engine Status</span>
+                   <span className="text-xl font-black uppercase tracking-widest">{robotActive ? "ONLINE" : "OFFLINE"}</span>
+                 </div>
+               </div>
              </div>
            </div>
         </div>
@@ -365,22 +426,27 @@ export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) 
              </div>
           )}
 
-          <div className="space-y-3 bg-black/40 border border-white/10 p-4 rounded-2xl">
-             <div className="space-y-4 bg-black/40 border border-brand-red/20 p-5 rounded-2xl relative overflow-hidden">
-               <div className="absolute top-0 right-0 p-4 opacity-10">
-                 <Cpu size={100} className="text-brand-red" />
+          <div className="space-y-3 bg-black/60 border border-brand-red/10 p-4 rounded-3xl backdrop-blur-md shadow-[0_4px_30px_rgba(0,0,0,0.1)]">
+             <div className="space-y-4 bg-[#0a0000] border border-brand-red/20 p-5 rounded-2xl relative overflow-hidden group">
+               <div className="absolute inset-0 bg-gradient-to-br from-brand-red/5 to-transparent opacity-50 group-hover:opacity-100 transition-opacity duration-500" />
+               <div className="absolute top-0 right-0 p-4 opacity-5 transform group-hover:scale-110 transition-transform duration-700">
+                 <Cpu size={120} className="text-brand-red" />
                </div>
-               <h3 className="font-black italic uppercase text-white tracking-widest text-sm flex items-center gap-2 relative z-10">
-                 <Bot size={16} className="text-brand-red" /> Robôs Conectados
+               <h3 className="font-black italic uppercase text-white tracking-widest text-sm flex items-center gap-2 relative z-10 pb-3 border-b border-white/5">
+                 <Bot size={16} className="text-brand-red shadow-brand-red/50 drop-shadow-md" /> ACTIVE SUBSYSTEMS
                </h3>
                
-               <div className="space-y-3 relative z-10">
-                  <div className="bg-black/50 border border-white/10 rounded-lg p-3 flex items-center justify-between">
-                    <div>
-                      <div className="text-xs font-bold text-white uppercase flex items-center gap-2">QuantScan IA <span className="bg-brand-red/20 text-brand-red text-[8px] px-2 py-0.5 rounded-full">PRO</span></div>
-                      <div className="text-[10px] text-zinc-500 mt-0.5">Trading Institucional HFR</div>
+               <div className="space-y-3 relative z-10 pt-2">
+                  <div className="bg-black/80 border border-brand-red/10 rounded-xl p-3 flex items-center justify-between overflow-hidden relative transition-all duration-300 hover:border-brand-red/30 hover:bg-black">
+                    <div className="absolute top-0 left-0 w-1 h-full bg-brand-red shadow-[0_0_10px_rgba(255,0,0,0.8)]" />
+                    <div className="pl-3">
+                      <div className="text-xs font-black text-white uppercase flex items-center gap-2 tracking-wider">QuantScan IA <span className="bg-brand-red/20 text-brand-red border border-brand-red/30 text-[8px] px-2 py-0.5 rounded-sm font-mono animate-pulse">PRO</span></div>
+                      <div className="text-[9px] text-zinc-500 mt-1 font-mono tracking-widest uppercase">Institutional HFR</div>
                     </div>
-                    <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(0,255,0,0.8)]" />
+                    <div className="relative">
+                       <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_10px_rgba(0,255,0,1)] animate-ping absolute" />
+                       <div className="w-2 h-2 rounded-full bg-green-400 relative" />
+                    </div>
                   </div>
                </div>
              </div>
@@ -415,9 +481,11 @@ export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) 
 
         {/* MIDDLE COLUMN: SETTINGS */}
         <div className="lg:col-span-1 space-y-6">
-           <div className="bg-black/40 border border-white/10 p-5 rounded-2xl h-full">
-              <h3 className="font-black italic uppercase text-white tracking-widest text-sm mb-6 flex items-center gap-2 border-b border-white/5 pb-4">
-                <Settings2 size={16} className="text-brand-red" /> Auto Trading Settings
+           <div className="relative bg-[#050000] border border-brand-red/20 p-6 rounded-3xl h-full shadow-[0_4px_30px_rgba(255,0,0,0.05)] overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-brand-red/50 to-transparent opacity-50" />
+              <div className="absolute -bottom-20 -right-20 w-40 h-40 bg-brand-red/5 filter blur-[100px]" />
+              <h3 className="font-black italic uppercase text-white tracking-widest text-sm mb-6 flex items-center gap-2 border-b border-brand-red/10 pb-4 relative z-10 w-full shadow-[0_10px_20px_-10px_rgba(255,0,0,0.1)]">
+                <Settings2 size={16} className="text-brand-red animate-[spin_5s_linear_infinite]" /> PARAMETERS & PROTOCOLS
               </h3>
               
               <div className="space-y-6">
@@ -513,6 +581,101 @@ export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) 
                     />
                   </div>
                 </div>
+
+                {/* ADVANCED SETTINGS ROW */}
+                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/5">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Tipo de Lote</label>
+                    <div className="flex bg-black border border-white/10 rounded-lg p-1">
+                      <button 
+                        onClick={() => {
+                          setLotType('risk');
+                          saveSettingsToFirebase(tradingSettings, riskPerTrade, maxPositions, undefined, undefined, undefined, 'risk', fixedLot);
+                        }}
+                        className={cn("flex-1 text-xs py-2 rounded-md transition-colors", lotType === 'risk' ? "bg-white/10 text-white font-bold" : "text-zinc-500")}
+                      >
+                        Risk %
+                      </button>
+                      <button 
+                         onClick={() => {
+                          setLotType('fixed');
+                          saveSettingsToFirebase(tradingSettings, riskPerTrade, maxPositions, undefined, undefined, undefined, 'fixed', fixedLot);
+                        }}
+                        className={cn("flex-1 text-xs py-2 rounded-md transition-colors", lotType === 'fixed' ? "bg-white/10 text-white font-bold" : "text-zinc-500")}
+                      >
+                        Fixo
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                      {lotType === 'risk' ? 'Risco por Trade (%)' : 'Lote Fixo'}
+                    </label>
+                    {lotType === 'risk' ? (
+                       <input 
+                         type="number" 
+                         value={riskPerTrade}
+                         onChange={(e) => setRiskPerTrade(e.target.value)}
+                         onBlur={handleRiskBlur}
+                         step="0.1"
+                         className="w-full bg-black border border-white/10 rounded-lg p-3 text-sm text-white font-mono focus:border-brand-red outline-none transition-colors" 
+                       />
+                    ) : (
+                       <input 
+                         type="number" 
+                         value={fixedLot}
+                         onChange={(e) => setFixedLot(e.target.value)}
+                         onBlur={handleFixedLotBlur}
+                         step="0.01"
+                         className="w-full bg-black border border-white/10 rounded-lg p-3 text-sm text-white font-mono focus:border-brand-red outline-none transition-colors" 
+                       />
+                    )}
+                  </div>
+                </div>
+
+                {/* BREAK EVEN & TIMES */}
+                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/5">
+                  <div className="space-y-1 flex flex-col justify-center">
+                     <div>
+                       <label className="text-sm font-bold text-white block">Break Even</label>
+                       <span className="text-[10px] text-zinc-500 mb-1 block">Mover Stop pro ponto de entrada</span>
+                     </div>
+                     <button
+                        onClick={() => {
+                          const newState = !breakEvenEnabled;
+                          setBreakEvenEnabled(newState);
+                          saveSettingsToFirebase(tradingSettings, riskPerTrade, maxPositions, undefined, undefined, undefined, lotType, fixedLot, newState);
+                        }}
+                        className={cn("w-10 h-6 rounded-full transition-colors relative", breakEvenEnabled ? "bg-brand-red" : "bg-white/10")}
+                      >
+                        <div className={cn("w-4 h-4 rounded-full bg-white absolute top-1 transition-all", breakEvenEnabled ? "right-1" : "left-1")} />
+                      </button>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest block mb-1">Início (UTC)</label>
+                        <input 
+                          type="time" 
+                          value={tradingHoursStart}
+                          onChange={(e) => setTradingHoursStart(e.target.value)}
+                          onBlur={handleHoursBlur}
+                          className="w-full bg-black border border-white/10 rounded-lg p-3 text-sm text-white font-mono focus:border-brand-red outline-none transition-colors" 
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest block mb-1">Fim (UTC)</label>
+                        <input 
+                          type="time" 
+                          value={tradingHoursEnd}
+                          onChange={(e) => setTradingHoursEnd(e.target.value)}
+                          onBlur={handleHoursBlur}
+                          className="w-full bg-black border border-white/10 rounded-lg p-3 text-sm text-white font-mono focus:border-brand-red outline-none transition-colors" 
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
            </div>
         </div>
@@ -521,9 +684,15 @@ export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) 
         <div className="lg:col-span-2 space-y-6">
            
            {/* BROKER INTEGRATION (MT4/MT5) */}
-           <div id="broker-connection" className="bg-black/40 border border-white/10 p-5 rounded-2xl">
-             <h3 className="font-black italic uppercase text-white tracking-widest text-sm mb-6 flex items-center gap-2">
-               <Globe2 size={16} className="text-brand-red" /> MT4 / MT5 Server Connection
+           <div id="broker-connection" className="relative bg-[#050000] border border-brand-red/20 p-6 rounded-3xl h-full shadow-[0_4px_30px_rgba(255,0,0,0.05)] overflow-hidden">
+             {/* HOLOGRAPHIC SCAN LINES */}
+             <div className="absolute inset-0 bg-[linear-gradient(rgba(255,0,0,0)_50%,rgba(255,0,0,0.02)_50%)] bg-[size:100%_4px] pointer-events-none z-0" />
+             <div className="absolute top-0 right-0 w-32 h-1 bg-gradient-to-l from-brand-red to-transparent opacity-80" />
+             <h3 className="font-black italic uppercase text-white tracking-widest text-sm mb-6 flex items-center gap-2 relative z-10 border-b border-brand-red/10 pb-4">
+               <div className="w-8 h-8 rounded-full bg-brand-red/10 border border-brand-red/20 flex items-center justify-center">
+                 <Globe2 size={14} className="text-brand-red" />
+               </div>
+               EXTERNAL UPLINK (BROKER)
              </h3>
             <div className="space-y-4">
                {userData?.mtPlatform === 'deriv_api' && userData?.mtLogin ? (

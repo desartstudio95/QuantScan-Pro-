@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Users, ShieldCheck, Search, Loader2, Settings, ShieldAlert } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { collection, onSnapshot, doc, updateDoc, addDoc, deleteDoc, query, orderBy, getDoc, setDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, addDoc, deleteDoc, query, orderBy, getDoc, setDoc, limit } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { ImageUploader } from './ImageUploader';
 import { sendTelegramAlert } from '../services/notifications';
@@ -42,6 +42,7 @@ export const AdminDashboard: React.FC = () => {
   
   const [globalDerivToken, setGlobalDerivToken] = useState('');
   const [globalTradeStake, setGlobalTradeStake] = useState(1);
+  const [globalTrades, setGlobalTrades] = useState<any[]>([]);
 
   useEffect(() => {
     if (autoScannerActive) {
@@ -111,10 +112,18 @@ export const AdminDashboard: React.FC = () => {
       console.warn("Failed to listen to settings:", error);
     });
 
+    const qGlobal = query(collection(db, 'users', 'global', 'auto_trades'), orderBy('timestamp', 'desc'), limit(10));
+    const unsubGlobalTrades = onSnapshot(qGlobal, (snapshot) => {
+      setGlobalTrades(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+      console.error("Global trades fetch error:", error);
+    });
+
     return () => {
       unsub();
       unsubTestimonials();
       unsubSettings();
+      unsubGlobalTrades();
     };
   }, []);
 
@@ -426,6 +435,31 @@ export const AdminDashboard: React.FC = () => {
                    />
                 </div>
              </div>
+
+             <div className="mt-6 border-t border-white/5 pt-4">
+               <span className="text-xs font-bold text-white uppercase tracking-wider mb-3 block">Histórico de Trades da IA Global (Master)</span>
+               {globalTrades.length === 0 ? (
+                   <p className="text-xs text-zinc-500">Nenhum trade realizado ainda.</p>
+               ) : (
+                   <div className="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                       {globalTrades.map(trade => (
+                           <div key={trade.id} className="bg-white/5 p-3 rounded-lg border border-white/5 flex items-center justify-between text-xs">
+                               <div>
+                                   <span className="text-white font-bold block">{trade.pair}</span>
+                                   <span className={cn("font-medium", trade.decision === 'BUY' ? "text-green-400" : "text-red-400")}>
+                                       {trade.decision} @ {trade.price}
+                                   </span>
+                               </div>
+                               <div className="text-right">
+                                   <span className="text-zinc-400 block">${trade.stake} Stake</span>
+                                   <span className="text-zinc-500 text-[10px]">{new Date(trade.timestamp).toLocaleString()}</span>
+                               </div>
+                           </div>
+                       ))}
+                   </div>
+               )}
+             </div>
+
           </div>
         </div>
 
