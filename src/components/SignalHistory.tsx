@@ -120,8 +120,11 @@ export const SignalHistory: React.FC = () => {
           // Update in Firebase
           try {
             await updateDoc(doc(db, 'signals', signal.id!), { result: finalResult });
-          } catch (e) {
-            console.error("Failed to update closed signal", e);
+          } catch (e: any) {
+            // Ignore insufficient permissions as regular users might not have access to update global signals in demo/shared mode
+            if (e && e.code !== 'permission-denied') {
+               console.error("Failed to update closed signal", e);
+            }
           }
         }
       }

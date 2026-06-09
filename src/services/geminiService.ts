@@ -3,7 +3,7 @@ import { AnalysisResponse, SignalType } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
-export const analyzeForexChart = async (imageBase64: string, userNotes?: string, preferredMode?: 'Técnico' | 'Fundamental' | 'Híbrido', userPlan?: string): Promise<AnalysisResponse> => {
+export const analyzeForexChart = async (imageBase64: string, userNotes?: string, preferredMode?: 'Técnico' | 'Fundamental' | 'Híbrido', userPlan?: string, preferredStyle?: string): Promise<AnalysisResponse> => {
   const model = 'gemini-3.1-pro-preview';
   
   const systemInstruction = `
@@ -24,8 +24,10 @@ O sistema deve operar em dois modos:
 RESTRIÇÕES DE PLANO
 ==================================================
 Se o plano do usuário for "basic" ou "experimental", você é **PROIBIDO** de realizar análise LONG TERM / SWING / POSITION.
-Você deve focar nas estruturas de curto prazo e gerar sinais APENAS para Scalping ou Intraday.
+Você deve focar nas estruturas de curto prazo e gerar sinais APENAS para Scalping ou Intraday (Day Trading).
 Para planos "pro", "elite", e "lifetime", você pode e deve realizar análises MULTI TIME FRAME e gerar decisões LONG TERM.
+
+${preferredStyle && preferredStyle !== 'Automático' ? `\nESTILO DE TRADING PREFERIDO PELO USUÁRIO NESTE SCAN: **${preferredStyle}**.\nVocê DEVE adaptar os seus stops, alvos e timeframe para gerar um sinal focado primeiramente em ${preferredStyle}.\nSe for Day Trading focar em alvos que batem no mesmo dia.\n` : ''}
 
 ==================================================
 PILARES DA ESTRATÉGIA SMC OBRIGATÓRIA

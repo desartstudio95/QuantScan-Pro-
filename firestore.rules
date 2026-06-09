@@ -100,7 +100,8 @@ service cloud.firestore {
                     && exists(/databases/$(database)/documents/users/$(request.auth.uid))
                     && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isApproved == true;
 
-      allow update, delete: if isDbAdmin();
+      allow update: if isDbAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['result']));
+      allow delete: if isDbAdmin();
     }
 
     // --- Testimonials Collection ---

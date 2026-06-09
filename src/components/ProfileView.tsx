@@ -175,34 +175,6 @@ export const ProfileView: React.FC<{
               </div>
 
               <div className="pt-4 border-t border-white/5 space-y-4">
-                 <h4 className="text-[10px] uppercase font-black tracking-widest text-zinc-500">Integração Auto-Trading</h4>
-                 
-                 {['pro', 'elite', 'lifetime'].includes(userData?.plan) ? (
-                   <>
-                     <div className="flex items-center justify-between p-3 bg-brand-gray/30 rounded-xl border border-white/5">
-                       <div>
-                         <p className="text-sm font-bold text-white">Ativar Auto-Trading</p>
-                         <p className="text-xs text-zinc-400">Executa sinais automaticamente na corretora</p>
-                       </div>
-                       <input
-                         type="checkbox"
-                         checked={autoTradingEnabled}
-                         onChange={(e) => setAutoTradingEnabled(e.target.checked)}
-                         className="w-5 h-5 accent-brand-red rounded bg-brand-dark/50 border border-white/10 cursor-pointer"
-                       />
-                     </div>
-                   </>
-                 ) : (
-                   <div className="p-4 bg-brand-red/10 border border-brand-red/20 rounded-xl space-y-2">
-                      <p className="text-sm font-bold text-white">Upgrade Necessário</p>
-                      <p className="text-xs text-zinc-400">
-                        A funcionalidade de Auto-Trading está disponível exclusivamente a partir do <strong className="text-brand-red">Plano Pro</strong>. Evolua sua conta para automatizar suas operações de forma profissional.
-                      </p>
-                   </div>
-                 )}
-              </div>
-
-              <div className="pt-4 border-t border-white/5 space-y-4">
                  <h4 className="text-[10px] uppercase font-black tracking-widest text-zinc-500">Change Password & Danger Zone</h4>
                  
                  <div className="space-y-1.5">

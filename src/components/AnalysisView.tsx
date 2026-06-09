@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { analyzeForexChart } from '../services/geminiService';
 import { AnalysisResponse, SignalResult, SignalType } from '../types';
 import { cn } from '../lib/utils';
+import { toast } from 'sonner';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import axios from 'axios';
 import { compressImage, cleanupStorage } from '../lib/imageUtils';
@@ -12,6 +13,7 @@ import { storage, auth, db, handleFirestoreError, OperationType } from '../lib/f
 import { collection, addDoc, serverTimestamp, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { fetchCurrentPrice } from '../services/marketData';
 import { sendTelegramAlert } from '../services/notifications';
+import { WatchlistPanel } from './WatchlistPanel';
 
 export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void }> = ({ userData, onGoToHistory }) => {
   const [file, setFile] = useState<File | null>(null);
@@ -20,9 +22,11 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
   const [result, setResult] = useState<AnalysisResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<'Técnico' | 'Fundamental' | 'Híbrido'>('Híbrido');
+  const [tradingStyle, setTradingStyle] = useState<'Automático' | 'Scalping' | 'Day Trading' | 'Swing'>('Automático');
   const [usageInfo, setUsageInfo] = useState<{ used: number, limit: number }>({ used: 0, limit: userData?.analysisLimit ?? 8 });
   const [alerts, setAlerts] = useState<{type: string, price: string, targetValue: number}[]>([]);
   const [customAlertPrices, setCustomAlertPrices] = useState<Record<string, string>>({});
+  const [alertOptions, setAlertOptions] = useState({ execution: true, expiration: true });
   const [marketPrice, setMarketPrice] = useState<number | null>(null);
 
   const now = Date.now();
@@ -168,7 +172,7 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
       }
 
       const base64 = preview.split(',')[1];
-      const analysis = await analyzeForexChart(base64, undefined, mode, userData?.plan);
+      const analysis = await analyzeForexChart(base64, undefined, mode, userData?.plan, tradingStyle);
       analysis.score = Math.round(analysis.score);
       setResult(analysis);
       
@@ -191,6 +195,10 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
           throw err;
         });
 
+        toast.success(`Scanner Concluído com ${sanitizedAnalysis.score}% de Confiança no ${sanitizedAnalysis.pair || 'Ativo'}!`, {
+            description: `Decisão de ${sanitizedAnalysis.decision}`
+        });
+
         if (sanitizedAnalysis.decision !== 'WAIT') {
           axios.post('/api/onesignal/notify', {
             title: 'Novo Sinal QuantScan IA 🚨',
@@ -210,6 +218,7 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
         errorMessage = `Erro na API: ${errorMessage}`;
       }
       setError(errorMessage);
+      toast.error('Erro na análise do Scanner', { description: errorMessage });
     } finally {
       setIsAnalyzing(false);
     }
@@ -313,6 +322,8 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
           </div>
         </div>
       </header>
+      
+      <WatchlistPanel />
 
       {!result ? (
         <div className="glass-card p-6 border-zinc-900 min-h-[300px] flex flex-col justify-center items-center group relative">
@@ -334,24 +345,47 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
           )}
           {!preview ? (
             <div className="w-full flex flex-col gap-4 items-center justify-center">
-              <div className="flex gap-2 mb-4 w-full justify-center">
-                 {(['Técnico', 'Fundamental', 'Híbrido'] as const).map((m) => (
-                    <button
-                      key={m}
-                      onClick={() => setMode(m)}
-                      className={cn(
-                        "px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all",
-                        mode === m ? "bg-brand-red text-white" : "bg-white/5 text-white/50 hover:bg-white/10"
-                      )}
-                    >
-                      {m}
-                    </button>
-                 ))}
+              <div className="flex flex-col gap-3 w-full max-w-sm mb-4">
+                <div className="flex flex-col justify-center gap-1.5 w-full tour-step-2">
+                  <span className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold text-center">Tipo de Análise</span>
+                  <div className="flex gap-2 w-full justify-center">
+                     {(['Técnico', 'Fundamental', 'Híbrido'] as const).map((m) => (
+                        <button
+                          key={m}
+                          onClick={() => setMode(m)}
+                          className={cn(
+                            "px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all",
+                            mode === m ? "bg-brand-red text-white" : "bg-white/5 text-white/50 hover:bg-white/10"
+                          )}
+                        >
+                          {m}
+                        </button>
+                     ))}
+                  </div>
+                </div>
+                
+                <div className="flex flex-col justify-center gap-1.5 w-full tour-step-3">
+                  <span className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold text-center">Estilo de Trading</span>
+                  <div className="flex gap-2 w-full justify-center flex-wrap">
+                     {(['Automático', 'Scalping', 'Day Trading', 'Swing'] as const).map((s) => (
+                        <button
+                          key={s}
+                          onClick={() => setTradingStyle(s)}
+                          className={cn(
+                            "px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all",
+                            tradingStyle === s ? "bg-brand-red text-white" : "bg-white/5 text-white/50 hover:bg-white/10"
+                          )}
+                        >
+                          {s}
+                        </button>
+                     ))}
+                  </div>
+                </div>
               </div>
               <div 
                 {...getRootProps()} 
                 className={cn(
-                  "w-full flex flex-col items-center justify-center py-10 rounded-xl cursor-pointer transition-all duration-300 border border-transparent",
+                  "w-full flex flex-col items-center justify-center py-10 rounded-xl cursor-pointer transition-all duration-300 border border-transparent tour-step-1",
                   isDragActive ? "bg-brand-red/5 scale-[0.98] border-brand-red/30" : "hover:bg-zinc-800/20",
                   isExpired ? "opacity-50 pointer-events-none" : ""
                 )}
@@ -671,6 +705,34 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
                   </div>
                 )}
               </div>
+
+              <div className="pt-4 border-t border-white/5 space-y-3">
+                 <h4 className="text-[10px] uppercase font-black tracking-widest text-zinc-400 mb-2">Opções de Notificação</h4>
+                 <div className="flex items-center justify-between p-3 glass-card bg-transparent border-white/5">
+                   <div className="flex items-center gap-2">
+                     <BellRing size={14} className="text-zinc-500" />
+                     <span className="text-[9px] font-black text-white uppercase">Notificar Horário de Negociação</span>
+                   </div>
+                   <button
+                      onClick={() => setAlertOptions(prev => ({ ...prev, execution: !prev.execution }))}
+                      className={cn("w-8 h-4 rounded-full transition-colors relative", alertOptions.execution ? "bg-brand-red" : "bg-white/10")}
+                    >
+                      <div className={cn("w-3 h-3 rounded-full bg-white absolute top-0.5 transition-all", alertOptions.execution ? "right-0.5" : "left-0.5")} />
+                    </button>
+                 </div>
+                 <div className="flex items-center justify-between p-3 glass-card bg-transparent border-white/5">
+                   <div className="flex items-center gap-2">
+                     <AlertTriangle size={14} className="text-zinc-500" />
+                     <span className="text-[9px] font-black text-white uppercase">Sinal Inválido ou Expirado</span>
+                   </div>
+                   <button
+                      onClick={() => setAlertOptions(prev => ({ ...prev, expiration: !prev.expiration }))}
+                      className={cn("w-8 h-4 rounded-full transition-colors relative", alertOptions.expiration ? "bg-brand-red" : "bg-white/10")}
+                    >
+                      <div className={cn("w-3 h-3 rounded-full bg-white absolute top-0.5 transition-all", alertOptions.expiration ? "right-0.5" : "left-0.5")} />
+                    </button>
+                 </div>
+              </div>
             </div>
           </div>
 
@@ -754,6 +816,67 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
                />
                
                {/* UI Overlays to simulate AI analysis */}
+               {/* Predictive Trend Overlay */}
+               <div className="absolute inset-0 z-15 pointer-events-none p-4 w-full h-full">
+                  <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" className="overflow-visible">
+                    <defs>
+                      <linearGradient id="trendGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor={result.decision === SignalType.BUY ? "#22c55e" : result.decision === SignalType.SELL ? "#ef4444" : "#71717a"} stopOpacity="0" />
+                        <stop offset="100%" stopColor={result.decision === SignalType.BUY ? "#22c55e" : result.decision === SignalType.SELL ? "#ef4444" : "#71717a"} stopOpacity="0.8" />
+                      </linearGradient>
+                    </defs>
+                    {result.decision === SignalType.BUY && (
+                      <motion.path 
+                        initial={{ pathLength: 0, opacity: 0 }}
+                        animate={{ pathLength: 1, opacity: 1 }}
+                        transition={{ duration: 1.5, ease: "easeInOut", delay: 0.5 }}
+                        d="M 10 90 Q 40 80, 50 50 T 90 20" 
+                        fill="none" 
+                        stroke="url(#trendGradient)" 
+                        strokeWidth="1.5"
+                        strokeDasharray="4 2"
+                      />
+                    )}
+                    {result.decision === SignalType.SELL && (
+                      <motion.path 
+                        initial={{ pathLength: 0, opacity: 0 }}
+                        animate={{ pathLength: 1, opacity: 1 }}
+                        transition={{ duration: 1.5, ease: "easeInOut", delay: 0.5 }}
+                        d="M 10 20 Q 40 30, 50 60 T 90 90" 
+                        fill="none" 
+                        stroke="url(#trendGradient)" 
+                        strokeWidth="1.5"
+                        strokeDasharray="4 2"
+                      />
+                    )}
+                    {result.decision !== SignalType.WAIT && (
+                      <>
+                        <motion.circle
+                          initial={{ scale: 0, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          transition={{ duration: 0.5, delay: 2 }}
+                           cx="90" 
+                           cy={result.decision === SignalType.BUY ? "20" : result.decision === SignalType.SELL ? "90" : "50"}
+                           r="1.5"
+                           fill={result.decision === SignalType.BUY ? "#22c55e" : result.decision === SignalType.SELL ? "#ef4444" : "#71717a"}
+                        />
+                        <motion.text
+                           initial={{ opacity: 0 }}
+                           animate={{ opacity: 1 }}
+                           transition={{ duration: 0.5, delay: 2 }}
+                           x="93"
+                           y={result.decision === SignalType.BUY ? "21.5" : result.decision === SignalType.SELL ? "91.5" : "51.5"}
+                           fontSize="3"
+                           fill="white"
+                           fontWeight="bold"
+                        >
+                          {result.score}% OVERLAY DE PREVISÃO
+                        </motion.text>
+                      </>
+                    )}
+                  </svg>
+               </div>
+               
                <div className="absolute inset-0 z-20 p-6 flex flex-col justify-end">
                   <div className="flex flex-wrap gap-2 mb-2">
                      <span className="px-2 py-0.5 bg-brand-red/20 border border-brand-red/30 rounded text-[8px] font-bold text-brand-red uppercase tracking-tighter backdrop-blur-sm">

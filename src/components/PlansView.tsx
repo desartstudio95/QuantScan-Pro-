@@ -138,11 +138,15 @@ export const PlansView: React.FC<PlansViewProps> = ({ isUnauthenticated, onGetSt
     show: { opacity: 1, y: 0 }
   };
 
+  const handlePaymentAction = (planName: string) => {
+    const text = `Olá, gostaria de assinar o ${planName} do QuantScan`;
+    window.open(`https://wa.me/258869976193?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
   const handleAction = () => {
     if (isUnauthenticated && onGetStarted) {
       onGetStarted();
     } else {
-      // Handle payment or subscription logic for logged in users
       window.open('https://wa.me/258869976193?text=Ol%C3%A1%2C%20gostaria%20de%20assinar%20o%20plano%20do%20QuantScan', '_blank');
     }
   };
@@ -240,7 +244,7 @@ export const PlansView: React.FC<PlansViewProps> = ({ isUnauthenticated, onGetSt
           price="500 MT"
           description="Plano de 2 semanas para testar as capacidades básicas da IA."
           buttonText="Testar IA"
-          onClick={handleAction}
+          onClick={() => handlePaymentAction("Plano Experimental")}
           features={[
             "3 análises por dia",
             "Apenas Curto Prazo (Scalping)",
@@ -255,7 +259,7 @@ export const PlansView: React.FC<PlansViewProps> = ({ isUnauthenticated, onGetSt
           price="2.000 MT"
           description="Para quem está começando e quer testar a potência."
           buttonText="Assinar Agora"
-          onClick={handleAction}
+          onClick={() => handlePaymentAction("Plano Begin")}
           features={[
             "8 análises por dia",
             "Scalping & Intraday",
@@ -272,7 +276,7 @@ export const PlansView: React.FC<PlansViewProps> = ({ isUnauthenticated, onGetSt
           buttonText="Assinar Agora"
           highlight={true}
           badge="Recomendado"
-          onClick={handleAction}
+          onClick={() => handlePaymentAction("Plano Pro")}
           features={[
             "15 análises por dia",
             "Análises de Longo Prazo",
@@ -287,7 +291,7 @@ export const PlansView: React.FC<PlansViewProps> = ({ isUnauthenticated, onGetSt
           price="7.500 MT"
           description="Acesso total às ferramentas institucionais e Auto-Trading VPS."
           buttonText="Ser Elite"
-          onClick={handleAction}
+          onClick={() => handlePaymentAction("Plano Elite")}
           features={[
             "30 análises por dia",
             "Auto-Trading + Gestão de Risco",
@@ -304,7 +308,7 @@ export const PlansView: React.FC<PlansViewProps> = ({ isUnauthenticated, onGetSt
           buttonText="Assinar Vitalício"
           highlight={true}
           badge="VIP VITALÍCIO"
-          onClick={handleAction}
+          onClick={() => handlePaymentAction("Plano Lifetime")}
           features={[
             "Análises Ilimitadas",
             "Tudo do Plano Elite com Auto-Trading",

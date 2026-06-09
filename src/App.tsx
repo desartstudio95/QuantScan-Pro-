@@ -16,12 +16,15 @@ import { ProfileView } from './components/ProfileView';
 import { NotificationManager } from './components/NotificationManager';
 import { MaintenancePage } from './components/MaintenancePage';
 import { LiveMarketTicker } from './components/LiveMarketTicker';
+import { TourGuide } from './components/TourGuide';
 import { TrendingUp, ShieldAlert, Ghost, Mail, Lock, UserPlus, LogIn, Loader2, ArrowLeft, User as UserIcon, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, signOut, sendEmailVerification, sendPasswordResetEmail, User, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'firebase/auth';
 import { doc, setDoc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from './lib/firebase';
 import { cn } from './lib/utils';
+
+import { Toaster } from 'sonner';
 
 declare global {
   interface Window {
@@ -34,6 +37,7 @@ export default function App() {
   const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('scan');
+  const [lang, setLang] = useState<'PT' | 'EN' | 'ES'>('PT');
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [maintenanceMessage, setMaintenanceMessage] = useState('');
   
@@ -86,7 +90,8 @@ export default function App() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      if (currentUser && currentUser.emailVerified) {
+      const isAdminEmail = currentUser?.email === "fxbrosinvestments00@gmail.com" || currentUser?.email === "desartstudiopro@gmail.com";
+      if (currentUser && (currentUser.emailVerified || isAdminEmail)) {
         try {
           const userRef = doc(db, 'users', currentUser.uid);
           const userSnap = await getDoc(userRef).catch(err => {
@@ -98,18 +103,18 @@ export default function App() {
              uid: currentUser.uid,
              email: currentUser.email,
              name: currentUser.displayName || 'User',
-             isAdmin: currentUser.email === "fxbrosinvestments00@gmail.com",
+             isAdmin: currentUser.email === "fxbrosinvestments00@gmail.com" || currentUser.email === "desartstudiopro@gmail.com",
              isPremium: false,
              plan: 'basic' as const,
              analysisLimit: 8,
-             isApproved: currentUser.email === "fxbrosinvestments00@gmail.com"
+             isApproved: currentUser.email === "fxbrosinvestments00@gmail.com" || currentUser.email === "desartstudiopro@gmail.com"
           };
 
           if (userSnap.exists()) {
             data = { ...data, ...userSnap.data() };
             
             // Force admin rights for root email
-            if (currentUser.email === "fxbrosinvestments00@gmail.com") {
+            if (currentUser.email === "fxbrosinvestments00@gmail.com" || currentUser.email === "desartstudiopro@gmail.com") {
               data.isAdmin = true;
               data.isApproved = true;
               
@@ -153,7 +158,7 @@ export default function App() {
         } catch (err) {
           console.error("Firestore user initialization error:", err);
           // Set minimal data to allow UI to render, but it might be limited due to rules
-          setUserData({ isPremium: false, isAdmin: currentUser.email === "fxbrosinvestments00@gmail.com", isApproved: false });
+          setUserData({ isPremium: false, isAdmin: currentUser.email === "fxbrosinvestments00@gmail.com" || currentUser.email === "desartstudiopro@gmail.com", isApproved: false });
         }
 
         setUser(currentUser);
@@ -169,7 +174,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  const isAdmin = user?.email === "fxbrosinvestments00@gmail.com" || userData?.isAdmin;
+  const isAdmin = user?.email === "fxbrosinvestments00@gmail.com" || user?.email === "desartstudiopro@gmail.com" || userData?.isAdmin;
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -197,7 +202,8 @@ export default function App() {
       if (isLogin) {
         const targetEmail = email.toLowerCase() === 'admin' ? 'fxbrosinvestments00@gmail.com' : email;
         const userCredential = await signInWithEmailAndPassword(auth, targetEmail, password);
-        if (!userCredential.user.emailVerified) {
+        const isAdminEmail = userCredential.user.email === "fxbrosinvestments00@gmail.com" || userCredential.user.email === "desartstudiopro@gmail.com";
+        if (!userCredential.user.emailVerified && !isAdminEmail) {
           try {
             await sendEmailVerification(userCredential.user);
           } catch (e) {
@@ -220,11 +226,11 @@ export default function App() {
              uid: userCredential.user.uid,
              email: userCredential.user.email,
              name: name,
-             isAdmin: userCredential.user.email === "fxbrosinvestments00@gmail.com",
+             isAdmin: userCredential.user.email === "fxbrosinvestments00@gmail.com" || userCredential.user.email === "desartstudiopro@gmail.com",
              isPremium: false,
              plan: 'basic',
              analysisLimit: 8,
-             isApproved: userCredential.user.email === "fxbrosinvestments00@gmail.com"
+             isApproved: userCredential.user.email === "fxbrosinvestments00@gmail.com" || userCredential.user.email === "desartstudiopro@gmail.com"
           });
         } catch (e) {
           console.error("Failed to write new user to DB", e);
@@ -598,6 +604,8 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-brand-dark text-white flex flex-col md:flex-row pb-20 md:pb-0 relative overflow-hidden">
+      <TourGuide hasCompletedTour={userData?.hasCompletedTour} />
+      <Toaster theme="dark" position="top-right" toastOptions={{ style: { background: '#0a0a0a', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' } }} />
       <NotificationManager />
       {/* Background Image for App */}
       <div className="absolute inset-0 z-0 pointer-events-none">
@@ -636,6 +644,17 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-4">
+            <div className="flex bg-black/40 border border-white/5 rounded-lg p-1">
+              {(['PT', 'EN', 'ES'] as const).map(l => (
+                <button 
+                  key={l} 
+                  onClick={() => setLang(l)} 
+                  className={cn("px-3 py-1 rounded text-[10px] font-black tracking-widest transition-colors", lang === l ? "bg-white/10 text-white" : "text-zinc-500 hover:text-white")}
+                >
+                  {l === 'PT' ? '🇵🇹 PT' : l === 'EN' ? '🇺🇸 EN' : '🇪🇸 ES'}
+                </button>
+              ))}
+            </div>
             <button onClick={handleLogout} className="glass-card !p-2 text-zinc-500 hover:text-white transition-all">
               <LogIn size={20} className="rotate-180" />
             </button>
@@ -652,13 +671,26 @@ export default function App() {
                   referrerPolicy="no-referrer"
                 />
                 <div className="flex flex-col">
-                  <span className="text-[10px] text-zinc-500 tracking-widest uppercase font-bold">Olá Humano, Bem-Vindo</span>
+                  <span className="text-[10px] text-zinc-500 tracking-widest uppercase font-bold">Olá Humano</span>
                   <div className="font-black italic text-xl tracking-tighter uppercase leading-none"><span className="text-white">QUANT</span><span className="text-brand-red">SCAN</span></div>
                 </div>
              </div>
-             <button onClick={handleLogout} className="text-zinc-500 hover:text-white p-2">
-               <LogIn size={18} className="rotate-180" />
-             </button>
+             <div className="flex items-center gap-2">
+               <div className="flex bg-black/40 border border-white/5 rounded p-0.5">
+                 {(['PT', 'EN', 'ES'] as const).map(l => (
+                   <button 
+                     key={l} 
+                     onClick={() => setLang(l)} 
+                     className={cn("px-1.5 py-0.5 rounded text-[8px] font-black tracking-widest transition-colors", lang === l ? "bg-brand-red text-white" : "text-zinc-500")}
+                   >
+                     {l}
+                   </button>
+                 ))}
+               </div>
+               <button onClick={handleLogout} className="text-zinc-500 hover:text-white p-2">
+                 <LogIn size={18} className="rotate-180" />
+               </button>
+             </div>
           </header>
 
           <AnimatePresence mode="wait">

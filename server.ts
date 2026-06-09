@@ -25,13 +25,56 @@ async function startServer() {
   // --- BACKGROUND WORKER NODE (CRON JOB) ---
   function getYfSymbol(pair: string): string {
   if (pair.includes('XAU')) return 'GC=F';
+  if (pair.includes('XAG')) return 'SI=F';
   if (pair.includes('US100')) return 'NQ=F';
   if (pair.includes('US30')) return 'YM=F';
   if (pair.includes('BTC')) return 'BTC-USD';
+  if (pair.includes('ETH')) return 'ETH-USD';
   
   // Clean punctuation and common broker suffixes
   const cleanPair = pair.toString().replace('/', '').replace(/\.M$/, '').replace(/\.std$/, '');
   return cleanPair + '=X';
+}
+
+async function getCurrentPriceProxy(symbol: string): Promise<number | null> {
+    const symStr = symbol.trim().toUpperCase();
+    if (symStr.includes('INDEX') || symStr.includes('BOOM') || symStr.includes('CRASH') || symStr.includes('VIX') || symStr.includes('VOLATILITY') || symStr.includes('STEP')) {
+       return null; // Synthetic indices handled separately or simulated
+    }
+
+    if (process.env.TWELVE_DATA_API_KEY) {
+       try {
+           let twelveSymbol = symStr;
+           if (twelveSymbol === 'GOLD' || twelveSymbol === 'OURO') twelveSymbol = 'XAU/USD';
+           if (twelveSymbol === 'SILVER' || twelveSymbol === 'PRATA') twelveSymbol = 'XAG/USD';
+           const res = await axios.get(`https://api.twelvedata.com/price?symbol=${twelveSymbol}&apikey=${process.env.TWELVE_DATA_API_KEY}`);
+           if (res.data && res.data.price) return parseFloat(res.data.price);
+       } catch (e: any) {
+           // Fallback silently if TwelveData is rate-limited or fails
+       }
+    }
+
+    const isCrypto = symStr.includes('BTC') || symStr.includes('ETH') || symStr.includes('USDT') || symStr.includes('BNB');
+    if (isCrypto) {
+      try {
+        const binanceSymbol = symStr.replace(/[^A-Z0-9]/g, '');
+        const res = await axios.get(`https://api.binance.com/api/v3/ticker/price?symbol=${binanceSymbol}`);
+        if (res.data && res.data.price) return parseFloat(res.data.price);
+      } catch (e) {}
+    }
+
+    try {
+        let symbolYF = getYfSymbol(symStr);
+        const yfRes = await axios.get(`https://query1.finance.yahoo.com/v8/finance/chart/${symbolYF}?interval=1m&range=1d`, {
+           headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" }
+        });
+        const result = yfRes.data.chart.result[0];
+        return parseFloat(result.meta.regularMarketPrice);
+    } catch(e: any) {
+        console.warn("Yahoo Finance error:", e.message);
+    }
+
+    return null;
 }
 
 const sendTelegramAlertServer = async (text: string, botToken: string, chatId: string, replyToMessageId?: number) => {
@@ -63,7 +106,8 @@ const sendTelegramAlertServer = async (text: string, botToken: string, chatId: s
         const signal = docSnap.data();
         let currentPrice = null;
         try {
-          if (signal.pair.includes('Index')) {
+          const symStr = signal.pair.toUpperCase();
+          if (symStr.includes('INDEX') || symStr.includes('BOOM') || symStr.includes('CRASH') || symStr.includes('VIX') || symStr.includes('VOLATILITY') || symStr.includes('STEP')) {
               const tp = parseFloat(signal.takeProfit);
               const sl = parseFloat(signal.stopLoss);
               // Simulamos um fecho aleatório para os índices para testes rápidos
@@ -73,13 +117,10 @@ const sendTelegramAlertServer = async (text: string, botToken: string, chatId: s
                  currentPrice = (tp + sl) / 2; // price stays in the middle
               }
           } else {
-              let symbolYF = getYfSymbol(signal.pair);
-              const yfRes = await axios.get(`https://query1.finance.yahoo.com/v8/finance/chart/${symbolYF}?interval=1m&range=1d`);
-              const result = yfRes.data.chart.result[0];
-              currentPrice = parseFloat(result.meta.regularMarketPrice);
+              currentPrice = await getCurrentPriceProxy(symStr);
           }
         } catch(e: any) {
-           console.error("Yahoo Finance data fetch error:", e.message);
+           console.error("Proxy price fetch error:", e.message);
            continue;
         }
 
@@ -751,7 +792,29 @@ const sendTelegramAlertServer = async (text: string, botToken: string, chatId: s
         tradeResult = await connection.createMarketSellOrder(sym, volume, 0, 0, { comment: 'TEST SMART ENTRY' });
      }
      
-     res.json({ success: true, tradeResult });
+     let parsedResult: any = {};
+     if (tradeResult) {
+         try {
+             // Extract plain properties to avoid circular references from MetaApi objects
+             parsedResult = {
+                 orderId: tradeResult.orderId,
+                 positionId: tradeResult.positionId,
+                 volume: tradeResult.volume,
+                 price: tradeResult.price,
+                 type: tradeResult.type,
+                 comment: tradeResult.comment,
+                 done: tradeResult.done,
+                 // For Deriv API fallback
+                 buy: tradeResult.buy?.transaction_id,
+                 sell: tradeResult.sell?.transaction_id,
+                 error: tradeResult.error ? String(tradeResult.error) : undefined
+             };
+         } catch(e) {
+             parsedResult = { message: "Trade executed, but could not parse result due to circular references." };
+         }
+     }
+     
+     res.json({ success: true, tradeResult: parsedResult });
    } catch(e: any) {
      const errString = e.message || e.toString();
      if (errString.toLowerCase().includes("permission") || errString.toLowerCase().includes("insufficient")) {
@@ -768,16 +831,19 @@ const sendTelegramAlertServer = async (text: string, botToken: string, chatId: s
   app.get("/api/twelve/quote", async (req, res) => {
     const symbol = req.query.symbol || "EUR/USD";
     try {
-      if (symbol.toString().includes('Index') || symbol.toString().includes('BOOM') || symbol.toString().includes('CRASH')) {
+      const symStr = symbol.toString().toUpperCase();
+      if (symStr.includes('INDEX') || symStr.includes('BOOM') || symStr.includes('CRASH') || symStr.includes('VIX') || symStr.includes('VOLATILITY') || symStr.includes('STEP')) {
          return res.json({ close: "15000" });
       }
-      let symbolYF = getYfSymbol(symbol.toString());
-      const response = await axios.get(`https://query1.finance.yahoo.com/v8/finance/chart/${symbolYF}?interval=1d&range=1d`);
-      const price = response.data.chart.result[0].meta.regularMarketPrice;
-      res.json({ close: price.toString() });
+      
+      const price = await getCurrentPriceProxy(symbol.toString());
+      if (price !== null) {
+          res.json({ close: price.toString() });
+      } else {
+          res.json({ close: "1.000" });
+      }
     } catch (error: any) {
       console.error(`Error fetching proxy quote for ${symbol}:`, error.message);
-      // Fallback
       res.json({ close: "1.000" });
     }
   });
@@ -785,13 +851,43 @@ const sendTelegramAlertServer = async (text: string, botToken: string, chatId: s
   // Proxy for history mapped to Twelve format
   app.get("/api/twelve/history", async (req, res) => {
     const symbol = req.query.symbol as string;
-    let symbolYF = "";
     try {
-      if (symbol.toString().includes('Index') || symbol.toString().includes('BOOM') || symbol.toString().includes('CRASH')) {
+      const symStr = symbol.toString().toUpperCase();
+      if (symStr.includes('INDEX') || symStr.includes('BOOM') || symStr.includes('CRASH') || symStr.includes('VIX') || symStr.includes('VOLATILITY') || symStr.includes('STEP')) {
          return res.json({ values: [] });
       }
-      symbolYF = getYfSymbol(symbol.toString());
-      const response = await axios.get(`https://query1.finance.yahoo.com/v8/finance/chart/${symbolYF}?interval=15m&range=5d`);
+
+      if (process.env.TWELVE_DATA_API_KEY) {
+          try {
+             let twelveSymbol = symStr;
+             if (twelveSymbol === 'GOLD' || twelveSymbol === 'OURO') twelveSymbol = 'XAU/USD';
+             if (twelveSymbol === 'SILVER' || twelveSymbol === 'PRATA') twelveSymbol = 'XAG/USD';
+             const tkres = await axios.get(`https://api.twelvedata.com/time_series?symbol=${twelveSymbol}&interval=15min&apikey=${process.env.TWELVE_DATA_API_KEY}`);
+             if (tkres.data && tkres.data.values) {
+                 return res.json({ values: tkres.data.values });
+             }
+          } catch(e) {}
+      }
+
+      const isCrypto = symStr.includes('BTC') || symStr.includes('ETH') || symStr.includes('USDT') || symStr.includes('BNB');
+      if (isCrypto) {
+         try {
+           const binanceSymbol = symStr.replace(/[^A-Z0-9]/g, '');
+           const bRes = await axios.get(`https://api.binance.com/api/v3/klines?symbol=${binanceSymbol}&interval=15m&limit=200`);
+           if (bRes.data && Array.isArray(bRes.data)) {
+               const values = bRes.data.map((c: any) => ({
+                   datetime: new Date(c[0]).toISOString().replace('T', ' ').substring(0, 19),
+                   open: c[1], high: c[2], low: c[3], close: c[4], volume: c[5]
+               })).reverse();
+               return res.json({ values });
+           }
+         } catch(e) {}
+      }
+
+      let symbolYF = getYfSymbol(symbol.toString());
+      const response = await axios.get(`https://query1.finance.yahoo.com/v8/finance/chart/${symbolYF}?interval=15m&range=5d`, {
+         headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" }
+      });
       const result = response.data.chart.result[0];
       const quote = result.indicators.quote[0];
       const timestamps = result.timestamp;
@@ -801,7 +897,7 @@ const sendTelegramAlertServer = async (text: string, botToken: string, chatId: s
         for (let i = timestamps.length - 1; i >= 0; i--) {
            if (quote.close[i] !== null) {
               values.push({
-                 datetime: new Date(timestamps[i] * 1000).toISOString(),
+                 datetime: new Date(timestamps[i] * 1000).toISOString().replace('T', ' ').substring(0, 19),
                  open: quote.open[i].toString(),
                  high: quote.high[i].toString(),
                  low: quote.low[i].toString(),
@@ -842,8 +938,14 @@ const sendTelegramAlertServer = async (text: string, botToken: string, chatId: s
         included_segments: ['Subscribed Users'],
       };
 
-      const response = await client.createNotification(notification);
-      res.json({ success: true, response });
+      let finalResponse = "ok";
+      try {
+           const response = await client.createNotification(notification);
+           finalResponse = (response as any).id || "ok";
+      } catch (e) {
+          // ignore or handle
+      }
+      res.json({ success: true, response: finalResponse });
     } catch (error) {
       console.error("Error sending OneSignal notification", error);
       res.status(500).json({ error: "Failed to send notification" });

@@ -28,7 +28,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, isAdmin
   const allTabs = [...mainTabs, ...accountTabs]; // For mobile rendering
 
   return (
-    <nav className="fixed bottom-4 left-1/2 -translate-x-1/2 md:translate-x-0 md:static md:w-64 md:h-screen md:flex-col glass-card !p-4 flex items-center md:items-stretch gap-1.5 z-50">
+    <nav className="tour-step-4 fixed bottom-0 left-0 w-full md:bottom-auto md:left-auto md:w-64 md:h-screen md:flex-col glass-card !rounded-b-none md:!rounded-xl !p-2 md:!p-4 flex flex-row md:items-stretch gap-1.5 z-50 border-x-0 border-b-0 md:border-x md:border-b">
       <div className="hidden md:flex items-center gap-3 p-3 mb-6 w-full border-b border-white/5 pb-6">
         <img 
           src="https://i.ibb.co/9BwbV3M/FXBROS-WORLD-3.png" 
