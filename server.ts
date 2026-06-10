@@ -11,6 +11,8 @@ const MetaApi = typeof MetaApiPkg === "function" ? MetaApiPkg : (MetaApiPkg as a
 import { db } from "./src/lib/firebase";
 import { doc, getDoc, setDoc, addDoc, collection, runTransaction, query, where, getDocs, updateDoc, orderBy, limit } from "firebase/firestore";
 
+import derivRoutes from "./src/routes/deriv.routes.ts";
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -21,6 +23,9 @@ async function startServer() {
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
   });
+
+  // Mount Deriv Routes
+  app.use("/api/deriv", derivRoutes);
 
   // --- BACKGROUND WORKER NODE (CRON JOB) ---
   function getYfSymbol(pair: string): string {

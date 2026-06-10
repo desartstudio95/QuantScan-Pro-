@@ -129,8 +129,13 @@ service cloud.firestore {
     }
     
     // Auto Trades Collection
-    match /users/{userId}/auto_trades/{tradeId} {
-        allow read, write: if true;
+    match /users/{userId}/auto_trades/{document=**} {
+        allow read, write: if isOwner(userId) || isDbAdmin();
+    }
+    
+    // Auto Trades Results Collection
+    match /users/{userId}/auto_trades_results/{document=**} {
+        allow read, write: if isOwner(userId) || isDbAdmin();
     }
     
     // Global Auto Trades Collection

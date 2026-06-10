@@ -5,6 +5,9 @@ import {
   BarChart2, TrendingUp, DollarSign, Send, Globe2, AlertTriangle, 
   Fingerprint, ChevronRight, Server, Cpu, Radio, Network, CheckCircle2, ShieldCheck
 } from 'lucide-react';
+import { DerivDiagnosticPanel } from './DerivDiagnosticPanel';
+import { DerivTestPanel } from './DerivTestPanel';
+import { AITradingDashboard } from './AITradingDashboard';
 import { cn } from '../lib/utils';
 
 export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) => void, onNavigate?: (tab: string) => void, isAdmin?: boolean }> = ({ userData, onUpdate, onNavigate, isAdmin }) => {
@@ -61,6 +64,10 @@ export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) 
   const [breakEvenEnabled, setBreakEvenEnabled] = useState(userData?.tradingSettings?.breakEvenEnabled ?? true);
   const [tradingHoursStart, setTradingHoursStart] = useState(userData?.tradingSettings?.tradingHoursStart || "00:00");
   const [tradingHoursEnd, setTradingHoursEnd] = useState(userData?.tradingSettings?.tradingHoursEnd || "23:59");
+  const [minConfidence, setMinConfidence] = useState(userData?.tradingSettings?.minConfidence?.toString() || "80");
+  const [dailyLossLimit, setDailyLossLimit] = useState(userData?.tradingSettings?.dailyLossLimit?.toString() || "100");
+  const [dailyProfitTarget, setDailyProfitTarget] = useState(userData?.tradingSettings?.dailyProfitTarget?.toString() || "200");
+  const [cooldownMinutes, setCooldownMinutes] = useState(userData?.tradingSettings?.cooldownMinutes?.toString() || "5");
 
   const saveSettingsToFirebase = async (
     newSettings: any[], 
@@ -99,7 +106,11 @@ export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) 
       fixedLot: parseFloat(newFixedLot ?? fixedLot) || 0.01,
       breakEvenEnabled: newBeEnabled ?? breakEvenEnabled,
       tradingHoursStart: newHoursStart ?? tradingHoursStart,
-      tradingHoursEnd: newHoursEnd ?? tradingHoursEnd
+      tradingHoursEnd: newHoursEnd ?? tradingHoursEnd,
+      minConfidence: parseFloat(minConfidence) || 80,
+      dailyLossLimit: parseFloat(dailyLossLimit) || 100,
+      dailyProfitTarget: parseFloat(dailyProfitTarget) || 200,
+      cooldownMinutes: parseInt(cooldownMinutes) || 5
     };
 
     try {
@@ -349,8 +360,13 @@ export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) 
         {/* LEFT COLUMN: STATUS & BUTTONS */}
         <div className="lg:col-span-1 space-y-6">
           
-          {/* STATUS CARDS REMOVED */}
-
+          {userData?.mtPlatform === 'deriv_api' && (
+             <>
+               <AITradingDashboard userData={userData} engineRunning={robotActive} />
+               <DerivDiagnosticPanel userData={userData} />
+               <DerivTestPanel userData={userData} />
+             </>
+          )}
 
           {/* MAIN BUTTONS */}
           <div className="space-y-3 bg-black/40 border border-white/10 p-4 rounded-2xl">
@@ -674,6 +690,54 @@ export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) 
                         />
                       </div>
                     </div>
+                  </div>
+                </div>
+
+                {/* RISK MANAGEMENT PANEL */}
+                <h3 className="font-black italic uppercase text-white tracking-widest text-sm mb-6 flex items-center gap-2 border-b border-brand-red/10 pb-4 mt-8 pt-4 border-t relative z-10 w-full shadow-[0_10px_20px_-10px_rgba(255,0,0,0.1)]">
+                  <Shield size={16} className="text-brand-red" /> RISK MANAGEMENT
+                </h3>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Min Confidence (%)</label>
+                    <input 
+                      type="number" 
+                      value={minConfidence}
+                      onChange={(e) => setMinConfidence(e.target.value)}
+                      onBlur={() => saveSettingsToFirebase(tradingSettings, riskPerTrade, maxPositions)}
+                      className="w-full bg-black border border-white/10 rounded-lg p-3 text-sm text-white font-mono focus:border-brand-red outline-none transition-colors" 
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Cooldown (mins)</label>
+                    <input 
+                      type="number" 
+                      value={cooldownMinutes}
+                      onChange={(e) => setCooldownMinutes(e.target.value)}
+                      onBlur={() => saveSettingsToFirebase(tradingSettings, riskPerTrade, maxPositions)}
+                      className="w-full bg-black border border-white/10 rounded-lg p-3 text-sm text-white font-mono focus:border-brand-red outline-none transition-colors" 
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-red-500 uppercase tracking-widest">Daily Loss Limit ($)</label>
+                    <input 
+                      type="number" 
+                      value={dailyLossLimit}
+                      onChange={(e) => setDailyLossLimit(e.target.value)}
+                      onBlur={() => saveSettingsToFirebase(tradingSettings, riskPerTrade, maxPositions)}
+                      className="w-full bg-black border border-red-500/30 rounded-lg p-3 text-sm text-red-400 font-mono focus:border-red-500 outline-none transition-colors" 
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-green-500 uppercase tracking-widest">Daily Profit Target ($)</label>
+                    <input 
+                      type="number" 
+                      value={dailyProfitTarget}
+                      onChange={(e) => setDailyProfitTarget(e.target.value)}
+                      onBlur={() => saveSettingsToFirebase(tradingSettings, riskPerTrade, maxPositions)}
+                      className="w-full bg-black border border-green-500/30 rounded-lg p-3 text-sm text-green-400 font-mono focus:border-green-500 outline-none transition-colors" 
+                    />
                   </div>
                 </div>
               </div>
