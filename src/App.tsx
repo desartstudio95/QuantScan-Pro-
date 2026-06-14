@@ -32,6 +32,10 @@ declare global {
   }
 }
 
+import { MultiAccountManager } from './components/MultiAccountManager';
+import { AutoScanner247 } from './components/AutoScanner247';
+import { EconomicCalendar } from './components/EconomicCalendar';
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<any>(null);
@@ -607,17 +611,18 @@ export default function App() {
       <TourGuide hasCompletedTour={userData?.hasCompletedTour} />
       <Toaster theme="dark" position="top-right" toastOptions={{ style: { background: '#0a0a0a', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' } }} />
       <NotificationManager />
-      {/* Background Image for App */}
-      <div className="absolute inset-0 z-0 pointer-events-none">
-        <img 
-          src="https://i.ibb.co/YFQNMsjX/7eaead9a-0cd4-48d7-8f10-b32d98256e6f.png" 
-          alt="App Background" 
-          className={cn(
-            "w-full h-full object-cover transition-opacity duration-500",
-            activeTab === 'history' ? "opacity-85" : "opacity-80"
-          )}
+      {/* Background Component for Institutional Look */}
+      <div className="fixed inset-0 z-0 pointer-events-none bg-black">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-zinc-900/40 via-brand-dark to-brand-dark" />
+        <div 
+          className="absolute inset-0 opacity-[0.03]" 
+          style={{ 
+            backgroundImage: 'linear-gradient(to right, #ffffff 1px, transparent 1px), linear-gradient(to bottom, #ffffff 1px, transparent 1px)', 
+            backgroundSize: '24px 24px',
+            backgroundPosition: 'center center'
+          }} 
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-brand-dark/40 via-brand-dark/20 to-brand-dark" />
+        <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-transparent via-brand-red/[0.015] to-transparent animate-[marquee_20s_linear_infinite]" style={{ backgroundSize: '100% 200%' }} />
       </div>
 
       <Navbar activeTab={activeTab} setActiveTab={setActiveTab} isAdmin={isAdmin} user={user} />
@@ -631,10 +636,13 @@ export default function App() {
             <span className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1">Olá Humano, Bem-Vindo</span>
             <h2 className="text-2xl font-black italic uppercase tracking-tighter text-white">
               {activeTab === 'scan' && 'Scanner de IA'}
+              {activeTab === 'autoScanner' && 'Auto Scanner 24/7'}
               {activeTab === 'autoTrade' && 'Auto Trading'}
+              {activeTab === 'calendar' && 'Calendário Econômico'}
               {activeTab === 'history' && 'Histórico de Sinais'}
               {activeTab === 'stats' && 'Performance & Dados'}
               {activeTab === 'profile' && 'Perfil do Usuário'}
+              {activeTab === 'multiAccount' && 'Multi Account Manager'}
               {activeTab === 'admin' && 'Painel Administrativo'}
             </h2>
             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">
@@ -702,10 +710,13 @@ export default function App() {
               transition={{ duration: 0.25, ease: 'easeOut' }}
             >
               {activeTab === 'scan' && <AnalysisView userData={userData} onGoToHistory={() => setActiveTab('history')} />}
+              {activeTab === 'autoScanner' && <AutoScanner247 userData={userData} />}
               {activeTab === 'autoTrade' && <AutoTradingView userData={userData} onUpdate={setUserData} onNavigate={setActiveTab} isAdmin={isAdmin} />}
+              {activeTab === 'calendar' && <EconomicCalendar />}
               {activeTab === 'history' && <SignalHistory />}
-              {activeTab === 'stats' && <DashboardStats />}
+              {activeTab === 'stats' && <DashboardStats userData={userData} />}
               {activeTab === 'profile' && <ProfileView user={user} userData={userData} onUpdate={setUserData} onDeleted={handleLogout} />}
+              {activeTab === 'multiAccount' && isAdmin && <MultiAccountManager userData={userData} />}
               {activeTab === 'admin' && isAdmin && <AdminDashboard />}
             </motion.div>
           </AnimatePresence>

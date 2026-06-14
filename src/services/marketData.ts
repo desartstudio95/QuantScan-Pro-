@@ -124,7 +124,7 @@ export const checkHistoricalSignalResult = async (signal: Signal): Promise<strin
     if (twelveSymbol === 'GOLD' || twelveSymbol === 'OURO') twelveSymbol = 'XAU/USD';
     if (twelveSymbol === 'SILVER' || twelveSymbol === 'PRATA') twelveSymbol = 'XAG/USD';
     
-    const response = await axios.get(`/api/twelve/history?symbol=${twelveSymbol}`);
+    const response = await axios.get(`/api/twelve/history?symbol=${encodeURIComponent(twelveSymbol)}`);
     if (response.data && response.data.values && Array.isArray(response.data.values)) {
        // TwelveData returns newest first. We need to iterate from oldest (after signal start) to newest.
        const values = [...response.data.values].reverse();
@@ -216,7 +216,7 @@ export const fetchChartData = async (symbol: string): Promise<{ time: number, op
     if (twelveSymbol === 'GOLD' || twelveSymbol === 'OURO') twelveSymbol = 'XAU/USD';
     if (twelveSymbol === 'SILVER' || twelveSymbol === 'PRATA') twelveSymbol = 'XAG/USD';
     
-    const response = await axios.get(`/api/twelve/history?symbol=${twelveSymbol}`);
+    const response = await axios.get(`/api/twelve/history?symbol=${encodeURIComponent(twelveSymbol)}`);
     if (response.data && response.data.values && Array.isArray(response.data.values)) {
         const values = [...response.data.values].reverse();
         return values.map((candle: any) => ({
@@ -316,7 +316,7 @@ export const fetchCurrentPrice = async (symbol: string): Promise<number | null> 
   }
 
   try {
-    const response = await axios.get(`/api/twelve/quote?symbol=${reqSymbol}`);
+    const response = await axios.get(`/api/twelve/quote?symbol=${encodeURIComponent(reqSymbol)}`);
     if (response.data && response.data.close) {
       const price = parseFloat(response.data.close);
       if (!isNaN(price)) return price;

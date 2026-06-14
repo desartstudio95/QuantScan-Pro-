@@ -47,12 +47,13 @@ async function getCurrentPriceProxy(symbol: string): Promise<number | null> {
        return null; // Synthetic indices handled separately or simulated
     }
 
-    if (process.env.TWELVE_DATA_API_KEY) {
+    const apiKey = process.env.TWELVE_DATA_API_KEY || "e3143522be4c4aac89e1f9a39925ed80";
+    if (apiKey) {
        try {
            let twelveSymbol = symStr;
            if (twelveSymbol === 'GOLD' || twelveSymbol === 'OURO') twelveSymbol = 'XAU/USD';
            if (twelveSymbol === 'SILVER' || twelveSymbol === 'PRATA') twelveSymbol = 'XAG/USD';
-           const res = await axios.get(`https://api.twelvedata.com/price?symbol=${twelveSymbol}&apikey=${process.env.TWELVE_DATA_API_KEY}`);
+           const res = await axios.get(`https://api.twelvedata.com/price?symbol=${twelveSymbol}&apikey=${apiKey}`);
            if (res.data && res.data.price) return parseFloat(res.data.price);
        } catch (e: any) {
            // Fallback silently if TwelveData is rate-limited or fails
@@ -862,12 +863,13 @@ const sendTelegramAlertServer = async (text: string, botToken: string, chatId: s
          return res.json({ values: [] });
       }
 
-      if (process.env.TWELVE_DATA_API_KEY) {
+      const apiKey = process.env.TWELVE_DATA_API_KEY || "e3143522be4c4aac89e1f9a39925ed80";
+      if (apiKey) {
           try {
              let twelveSymbol = symStr;
              if (twelveSymbol === 'GOLD' || twelveSymbol === 'OURO') twelveSymbol = 'XAU/USD';
              if (twelveSymbol === 'SILVER' || twelveSymbol === 'PRATA') twelveSymbol = 'XAG/USD';
-             const tkres = await axios.get(`https://api.twelvedata.com/time_series?symbol=${twelveSymbol}&interval=15min&apikey=${process.env.TWELVE_DATA_API_KEY}`);
+             const tkres = await axios.get(`https://api.twelvedata.com/time_series?symbol=${twelveSymbol}&interval=15min&apikey=${apiKey}`);
              if (tkres.data && tkres.data.values) {
                  return res.json({ values: tkres.data.values });
              }
@@ -992,6 +994,17 @@ const sendTelegramAlertServer = async (text: string, botToken: string, chatId: s
     } catch (error: any) {
       console.error("MetaAPI Connection Error:", error);
       res.status(500).json({ error: error.message || "Failed to connect to MetaAPI" });
+    }
+  });
+
+  // Proxy for Economic Calendar (using fair economy due to 12Data missing macro economic endpoints)
+  app.get("/api/economic_calendar", async (req, res) => {
+    try {
+       const calendarRes = await axios.get("https://nfs.faireconomy.media/ff_calendar_thisweek.json");
+       return res.json({ success: true, data: calendarRes.data });
+    } catch(e: any) {
+       console.error("Economic calendar error:", e.message);
+       return res.status(500).json({ success: false, error: "Failed to fetch calendar data" });
     }
   });
 

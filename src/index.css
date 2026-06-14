@@ -45,7 +45,7 @@
 }
 
 .glass-card {
-  @apply bg-brand-gray/15 backdrop-blur-md border border-white/5 rounded-xl p-4 md:p-5;
+  @apply bg-[#050505]/95 backdrop-blur-xl border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.8)] rounded-xl p-4 md:p-5;
 }
 
 .red-glow {

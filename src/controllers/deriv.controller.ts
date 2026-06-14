@@ -54,7 +54,7 @@ export const connect = async (req: Request, res: Response) => {
         
         res.json({ success: true, message: 'Connected to Deriv' });
     } catch (err: any) {
-        console.error('[Deriv] Connection Error:', err);
+        console.error('[Deriv] Connection Error:', err?.message || err);
         const errMessage = err?.message || String(err);
         res.status(500).json({ error: errMessage || 'Connection failed' });
     }

@@ -54,7 +54,7 @@ _Analisado por Inteligência Institucional_
             console.error('Failed to send Telegram message', await response.text());
         }
 
-    } catch (error) {
-        console.error('Error sending Telegram alert:', error);
+    } catch (error: any) {
+        console.error('Error sending Telegram alert:', error?.message || error);
     }
 }

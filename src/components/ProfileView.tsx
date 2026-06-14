@@ -26,6 +26,16 @@ export const ProfileView: React.FC<{
   const [autoTradingEnabled, setAutoTradingEnabled] = useState(userData?.autoTradingEnabled || false);
   const [riskPerTrade, setRiskPerTrade] = useState(userData?.riskPerTrade || '2');
   const [maxPositionsPerSignal, setMaxPositionsPerSignal] = useState(userData?.maxPositionsPerSignal || '1');
+  
+  // Notification Config
+  const [notifTelegram, setNotifTelegram] = useState(userData?.notifications?.telegram || false);
+  const [notifPush, setNotifPush] = useState(userData?.notifications?.push || false);
+  const [notifEmail, setNotifEmail] = useState(userData?.notifications?.email || true);
+  const [notifyNewSignal, setNotifyNewSignal] = useState(userData?.notifications?.onNewSignal || true);
+  const [notifyTP, setNotifyTP] = useState(userData?.notifications?.onTP || true);
+  const [notifySL, setNotifySL] = useState(userData?.notifications?.onSL || true);
+  const [notifyOpen, setNotifyOpen] = useState(userData?.notifications?.onTradeOpen || false);
+  const [notifyClose, setNotifyClose] = useState(userData?.notifications?.onTradeClose || false);
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,6 +58,15 @@ export const ProfileView: React.FC<{
       docUpdates.autoTradingEnabled = autoTradingEnabled;
       docUpdates.riskPerTrade = riskPerTrade;
       docUpdates.maxPositionsPerSignal = maxPositionsPerSignal;
+      
+      docUpdates['notifications.telegram'] = notifTelegram;
+      docUpdates['notifications.push'] = notifPush;
+      docUpdates['notifications.email'] = notifEmail;
+      docUpdates['notifications.onNewSignal'] = notifyNewSignal;
+      docUpdates['notifications.onTP'] = notifyTP;
+      docUpdates['notifications.onSL'] = notifySL;
+      docUpdates['notifications.onTradeOpen'] = notifyOpen;
+      docUpdates['notifications.onTradeClose'] = notifyClose;
 
       await updateDoc(doc(db, 'users', auth.currentUser.uid), docUpdates);
       onUpdate({ ...userData, ...docUpdates });
@@ -222,6 +241,57 @@ export const ProfileView: React.FC<{
                 </button>
               </div>
             </form>
+          </motion.div>
+          
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="glass-card p-6 relative overflow-hidden">
+             <div className="absolute top-0 right-0 w-32 h-32 bg-brand-red/10 blur-3xl" />
+             <h3 className="text-sm font-black italic uppercase text-white tracking-widest mb-4 flex items-center gap-2">
+               Central de Notificações
+             </h3>
+             <div className="space-y-4">
+                 <div>
+                     <p className="text-[10px] uppercase font-black tracking-widest text-zinc-500 mb-2">Canais de Envio</p>
+                     <div className="flex flex-wrap gap-4">
+                         <label className="flex items-center gap-2 text-xs font-bold text-white cursor-pointer">
+                             <input type="checkbox" checked={notifTelegram} onChange={(e) => { setNotifTelegram(e.target.checked); handleUpdate(e as any); }} className="accent-brand-red" />
+                             Telegram
+                         </label>
+                         <label className="flex items-center gap-2 text-xs font-bold text-white cursor-pointer">
+                             <input type="checkbox" checked={notifPush} onChange={(e) => { setNotifPush(e.target.checked); handleUpdate(e as any); }} className="accent-brand-red" />
+                             Push Notification
+                         </label>
+                         <label className="flex items-center gap-2 text-xs font-bold text-white cursor-pointer">
+                             <input type="checkbox" checked={notifEmail} onChange={(e) => { setNotifEmail(e.target.checked); handleUpdate(e as any); }} className="accent-brand-red" />
+                             Email
+                         </label>
+                     </div>
+                 </div>
+                 <div>
+                     <p className="text-[10px] uppercase font-black tracking-widest text-zinc-500 mb-2">Eventos Alertados</p>
+                     <div className="grid grid-cols-2 gap-3">
+                         <label className="flex items-center gap-2 text-xs font-medium text-zinc-300 cursor-pointer">
+                             <input type="checkbox" checked={notifyNewSignal} onChange={(e) => { setNotifyNewSignal(e.target.checked); handleUpdate(e as any); }} className="accent-brand-red" />
+                             Novo Sinal Gerado
+                         </label>
+                         <label className="flex items-center gap-2 text-xs font-medium text-zinc-300 cursor-pointer">
+                             <input type="checkbox" checked={notifyTP} onChange={(e) => { setNotifyTP(e.target.checked); handleUpdate(e as any); }} className="accent-brand-red" />
+                             Take Profit (TP) Atingido
+                         </label>
+                         <label className="flex items-center gap-2 text-xs font-medium text-zinc-300 cursor-pointer">
+                             <input type="checkbox" checked={notifySL} onChange={(e) => { setNotifySL(e.target.checked); handleUpdate(e as any); }} className="accent-brand-red" />
+                             Stop Loss (SL) Atingido
+                         </label>
+                         <label className="flex items-center gap-2 text-xs font-medium text-zinc-300 cursor-pointer">
+                             <input type="checkbox" checked={notifyOpen} onChange={(e) => { setNotifyOpen(e.target.checked); handleUpdate(e as any); }} className="accent-brand-red" />
+                             Operação Aberta (Auto)
+                         </label>
+                         <label className="flex items-center gap-2 text-xs font-medium text-zinc-300 cursor-pointer">
+                             <input type="checkbox" checked={notifyClose} onChange={(e) => { setNotifyClose(e.target.checked); handleUpdate(e as any); }} className="accent-brand-red" />
+                             Operação Encerrada
+                         </label>
+                     </div>
+                 </div>
+             </div>
           </motion.div>
 
           {/* WhatsApp Support Group */}

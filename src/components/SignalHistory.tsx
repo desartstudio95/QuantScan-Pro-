@@ -13,6 +13,7 @@ import axios from 'axios';
 export const SignalHistory: React.FC = () => {
   const [signals, setSignals] = useState<Signal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filterPreset, setFilterPreset] = useState<'hoje'|'semana'|'mes'|'personalizado'>('personalizado');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [expandedSignalIds, setExpandedSignalIds] = useState<string[]>([]);
@@ -246,6 +247,30 @@ export const SignalHistory: React.FC = () => {
     return "Fechado";
   };
 
+  const applyFilterPreset = (preset: 'hoje'|'semana'|'mes'|'personalizado') => {
+    setFilterPreset(preset);
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    
+    if (preset === 'hoje') {
+        const dStr = today.toISOString().split('T')[0];
+        setStartDate(dStr);
+        setEndDate(dStr);
+    } else if (preset === 'semana') {
+        const startOfWeek = new Date(today);
+        startOfWeek.setDate(today.getDate() - today.getDay());
+        setStartDate(startOfWeek.toISOString().split('T')[0]);
+        setEndDate(new Date().toISOString().split('T')[0]);
+    } else if (preset === 'mes') {
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        setStartDate(startOfMonth.toISOString().split('T')[0]);
+        setEndDate(new Date().toISOString().split('T')[0]);
+    } else {
+        setStartDate('');
+        setEndDate('');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -254,29 +279,37 @@ export const SignalHistory: React.FC = () => {
           Histórico de Sinais
         </h1>
         <div className="flex flex-col sm:flex-row gap-3 items-center">
-          <div className="flex flex-wrap sm:flex-nowrap bg-brand-gray/50 rounded-lg p-1 border border-white/5 items-center">
-            <input 
-              type="date" 
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="bg-transparent text-sm text-zinc-300 outline-none px-2 py-1 [color-scheme:dark]"
-            />
-            <span className="text-zinc-600 px-2 py-1">-</span>
-            <input 
-              type="date" 
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="bg-transparent text-sm text-zinc-300 outline-none px-2 py-1 [color-scheme:dark]"
-            />
-            {(startDate || endDate) && (
-              <button 
-                onClick={() => { setStartDate(''); setEndDate(''); }}
-                className="text-xs text-brand-red px-2 hover:bg-brand-red/10 rounded py-1 ml-1"
-              >
-                Limpar
-              </button>
-            )}
+          <div className="flex gap-2">
+            <button onClick={() => applyFilterPreset('hoje')} className={cn("px-3 py-1 rounded text-[10px] font-black uppercase tracking-widest transition-colors", filterPreset === 'hoje' ? "bg-brand-red text-white" : "bg-brand-gray text-zinc-500 hover:text-white")}>Hoje</button>
+            <button onClick={() => applyFilterPreset('semana')} className={cn("px-3 py-1 rounded text-[10px] font-black uppercase tracking-widest transition-colors", filterPreset === 'semana' ? "bg-brand-red text-white" : "bg-brand-gray text-zinc-500 hover:text-white")}>Semana</button>
+            <button onClick={() => applyFilterPreset('mes')} className={cn("px-3 py-1 rounded text-[10px] font-black uppercase tracking-widest transition-colors", filterPreset === 'mes' ? "bg-brand-red text-white" : "bg-brand-gray text-zinc-500 hover:text-white")}>Mês</button>
+            <button onClick={() => applyFilterPreset('personalizado')} className={cn("px-3 py-1 rounded text-[10px] font-black uppercase tracking-widest transition-colors", filterPreset === 'personalizado' ? "bg-brand-red text-white" : "bg-brand-gray text-zinc-500 hover:text-white")}>Pers.</button>
           </div>
+          {filterPreset === 'personalizado' && (
+            <div className="flex flex-wrap sm:flex-nowrap bg-brand-gray/50 rounded-lg p-1 border border-white/5 items-center">
+                <input 
+                  type="date" 
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="bg-transparent text-sm text-zinc-300 outline-none px-2 py-1 [color-scheme:dark]"
+                />
+                <span className="text-zinc-600 px-2 py-1">-</span>
+                <input 
+                  type="date" 
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="bg-transparent text-sm text-zinc-300 outline-none px-2 py-1 [color-scheme:dark]"
+                />
+                {(startDate || endDate) && (
+                  <button 
+                    onClick={() => { setStartDate(''); setEndDate(''); }}
+                    className="text-xs text-brand-red px-2 hover:bg-brand-red/10 rounded py-1 ml-1"
+                  >
+                    Limpar
+                  </button>
+                )}
+            </div>
+          )}
           <span className="bg-brand-gray px-4 py-2 rounded-full text-zinc-400 text-sm font-bold border border-white/5 whitespace-nowrap">
             {sortedSignals.length} Sinais
           </span>

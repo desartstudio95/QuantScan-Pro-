@@ -25,8 +25,8 @@ export function LiveMarketTicker() {
         
         setQuotes(newQuotes);
         setLoading(false);
-      } catch (e) {
-        console.error("Failed to fetch market data", e);
+      } catch (e: any) {
+        console.error("Failed to fetch market data", e?.message || e);
         setLoading(false);
       }
     };

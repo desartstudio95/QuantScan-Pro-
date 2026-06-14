@@ -90,7 +90,7 @@ export const TradingChart: React.FC<TradingChartProps> = ({ signal }) => {
           seriesRef.current = mainSeries;
         }
       } catch (e) {
-        console.error("Failed to load chart", e);
+        console.error("Failed to load chart", e?.message || e);
       } finally {
         if (active) setLoading(false);
       }

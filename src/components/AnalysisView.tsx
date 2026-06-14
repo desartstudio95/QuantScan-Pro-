@@ -61,8 +61,8 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
           currentPrice = price;
           checkAlerts(price);
         }
-      } catch (e) {
-        console.error("Error fetching market price", e);
+      } catch (e: any) {
+        console.error("Error fetching market price", e?.message || e);
       }
     };
 
@@ -203,14 +203,14 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
           axios.post('/api/onesignal/notify', {
             title: 'Novo Sinal QuantScan IA 🚨',
             message: `${sanitizedAnalysis.pair} - ${sanitizedAnalysis.decision} (${sanitizedAnalysis.signalType || 'Scalping'}). Confiança: ${sanitizedAnalysis.score}%`
-          }).catch(console.error);
+          }).catch((err: any) => console.error("OneSignal error", err?.message || err));
           
-          sendTelegramAlert(sanitizedAnalysis).catch(console.error);
+          sendTelegramAlert(sanitizedAnalysis).catch((err: any) => console.error("Telegram Error", err?.message || err));
         }
       }
 
     } catch (err: any) {
-      console.error("Gemini Error:", err);
+      console.error("Gemini Error:", err?.message || err);
       let errorMessage = err.message || 'Falha ao analisar imagem. Verifique se o gráfico está claro.';
       if (errorMessage.includes('429') || errorMessage.includes('RESOURCE_EXHAUSTED') || errorMessage.includes('prepayment credits')) {
         errorMessage = 'Sua cota de uso da API do Google Gemini (IA) foi excedida ou os créditos acabaram. Por favor, acesse o painel do Google AI Studio (https://ai.studio) para verificar seu faturamento e recarregar os créditos.';
@@ -467,135 +467,124 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
         >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Score & Signal Info */}
-            <div className="glass-card flex flex-col items-center justify-center text-center space-y-4">
-              <div className="relative w-36 h-36 flex items-center justify-center">
-                <svg className="w-full h-full" viewBox="0 0 100 100">
-                  <circle 
-                    cx="50" cy="50" r="45" 
-                    fill="none" 
-                    stroke="rgba(255,255,255,0.03)" 
-                    strokeWidth="6"
-                  />
-                  <circle 
-                    cx="50" cy="50" r="45" 
-                    fill="none" 
-                    stroke="currentColor" 
-                    strokeWidth="6"
-                    strokeDasharray={283}
-                    strokeDashoffset={283 - (283 * result.score) / 100}
-                    className={cn(
-                      "transition-all duration-1000 ease-out",
-                      result.decision === SignalType.BUY ? "text-green-500" : (result.decision === SignalType.SELL ? "text-brand-red" : "text-zinc-500")
-                    )}
-                    strokeLinecap="round"
-                    transform="rotate(-90 50 50)"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <div className="glass-card flex flex-col space-y-4 relative overflow-hidden bg-gradient-to-b from-brand-gray/40 to-transparent">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-brand-red/5 blur-3xl" />
+              
+              <div className="flex flex-col md:flex-row items-center gap-6">
+                <div className="relative w-36 h-36 shrink-0 flex items-center justify-center">
+                  <svg className="w-full h-full drop-shadow-[0_0_15px_rgba(255,0,0,0.1)]" viewBox="0 0 100 100">
+                    <circle 
+                      cx="50" cy="50" r="45" 
+                      fill="none" 
+                      stroke="rgba(255,255,255,0.03)" 
+                      strokeWidth="2"
+                    />
+                    <circle 
+                      cx="50" cy="50" r="45" 
+                      fill="none" 
+                      stroke="currentColor" 
+                      strokeWidth="4"
+                      strokeDasharray={283}
+                      strokeDashoffset={283 - (283 * result.score) / 100}
+                      className={cn(
+                        "transition-all duration-1000 ease-out",
+                        result.decision === SignalType.BUY ? "text-green-500" : (result.decision === SignalType.SELL ? "text-brand-red" : "text-zinc-500")
+                      )}
+                      strokeLinecap="round"
+                      transform="rotate(-90 50 50)"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-[8px] font-black uppercase text-zinc-500 tracking-widest mb-0.5">IA SCORE</span>
+                    <span className={cn(
+                      "text-4xl font-black leading-none font-mono tracking-tighter",
+                      result.decision === SignalType.BUY ? "text-green-500 text-shadow-sm shadow-green-500/50" : (result.decision === SignalType.SELL ? "text-brand-red red-text-glow" : "text-zinc-500")
+                    )}>
+                      {result.score}%
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex-1 space-y-3 z-10 w-full text-center md:text-left">
+                  <div>
+                    <h3 className={cn(
+                      "text-xs font-black uppercase tracking-widest",
+                      result.score >= 80 
+                        ? (result.decision === SignalType.BUY ? "text-green-500" : "text-brand-red") 
+                        : result.score >= 60 ? "text-orange-500" : "text-zinc-500"
+                    )}>
+                      {result.score >= 80 ? '🔥 ALTA PROBABILIDADE' : result.score >= 60 ? '⚖️ MÉDIA PROBABILIDADE' : '❌ EVITAR'}
+                    </h3>
+                    <p className="text-zinc-400 mt-1.5 text-xs font-medium leading-relaxed border-l-2 border-white/10 pl-3 md:pl-0 md:border-l-0 text-left md:text-justify">{result.justification}</p>
+                    <p className="text-brand-red mt-2 text-[10px] font-bold uppercase tracking-widest bg-brand-red/10 inline-block px-2 py-1 rounded border border-brand-red/20">⚠️ {result.alerta}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 w-full pt-4 border-t border-white/5">
+                <div className="bg-black/40 border border-white/5 rounded p-2 text-center">
+                  <span className="block text-[8px] text-zinc-600 uppercase font-black mb-1 tracking-widest">ATIVO IDENTIFICADO</span>
+                  <span className="text-sm font-black text-white">{result.pair}</span>
+                </div>
+                <div className="bg-black/40 border border-white/5 rounded p-2 text-center">
+                  <span className="block text-[8px] text-zinc-600 uppercase font-black mb-1 tracking-widest">TIMEFRAME</span>
+                  <span className="text-sm font-black text-white">{result.timeframe}</span>
+                </div>
+                <div className="bg-black/40 border border-white/5 rounded p-2 text-center">
+                  <span className="block text-[8px] text-zinc-600 uppercase font-black mb-1 tracking-widest">RISCO</span>
                   <span className={cn(
-                    "text-4xl font-black leading-none",
-                    result.decision === SignalType.BUY ? "text-green-500" : (result.decision === SignalType.SELL ? "text-brand-red red-text-glow" : "text-zinc-500")
-                  )}>
-                    {result.score}%
+                        "text-sm font-black tracking-widest",
+                        result.riskLevel?.toUpperCase() === 'LOW' ? "text-green-500" :
+                        result.riskLevel?.toUpperCase() === 'HIGH' ? "text-brand-red" : "text-orange-500"
+                      )}>{result.riskLevel || 'MED'}</span>
+                </div>
+              </div>
+              
+              <div className="bg-brand-red/5 border border-brand-red/10 rounded-lg p-3">
+                 <h4 className="text-[9px] uppercase font-black tracking-widest text-brand-red mb-2 flex items-center gap-2">
+                    <ScanLine size={12} /> Padrões & Estrutura Detectada
+                 </h4>
+                 <p className="text-xs text-brand-light font-medium leading-relaxed font-mono mt-1">
+                    {result.estrutura || result.tecnica || 'Padrões de liquidez identificados pelo modelo Quântico.'}
+                 </p>
+              </div>
+            </div>
+
+            {/* Trading Decision Block */}
+            <div className="glass-card space-y-4 bg-gradient-to-b from-black to-brand-gray/20">
+              <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                 <div className="flex flex-col">
+                    <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">{result.signalType || 'EXECUÇÃO'}</span>
+                    <span className="text-sm font-black text-white">{result.pair}</span>
+                 </div>
+                 <div className={cn(
+                  "px-4 py-1.5 rounded flex items-center justify-center border",
+                  result.decision === SignalType.BUY ? "bg-green-500/10 text-green-500 border-green-500/20" : 
+                  result.decision === SignalType.SELL ? "bg-brand-red/10 text-brand-red border-brand-red/20" : 
+                  "bg-zinc-500/10 text-zinc-500 border-zinc-500/20"
+                )}>
+                  <span className="text-xl font-black uppercase italic tracking-tighter">
+                    {result.decision}
                   </span>
                 </div>
               </div>
 
-              <div>
-                <h3 className={cn(
-                  "text-sm font-black uppercase tracking-wider italic",
-                  result.score >= 80 
-                    ? (result.decision === SignalType.BUY ? "text-green-500" : "text-brand-red red-text-glow") 
-                    : result.score >= 60 ? "text-orange-500" : "text-zinc-500"
-                )}>
-                  {result.score >= 80 ? '🔥 ALTA PROBABILIDADE' : result.score >= 60 ? '⚖️ MÉDIA PROBABILIDADE' : '❌ EVITAR'}
-                </h3>
-                <p className="text-zinc-500 mt-1 text-[10px] font-medium max-w-[200px]">{result.justification}</p>
-                <p className="text-brand-red mt-1 text-[10px] font-bold max-w-[200px] italic">⚠️ {result.alerta}</p>
-              </div>
-
-              <div className="w-full pt-4 border-t border-white/5 flex gap-3">
-                <div className="flex-1 glass-card p-2">
-                  <span className="block text-[8px] text-zinc-600 uppercase font-black mb-0.5">MODO</span>
-                  <span className="text-xs font-black">{result.mode}</span>
-                </div>
-                <div className="flex-1 glass-card p-2">
-                  <span className="block text-[8px] text-zinc-600 uppercase font-black mb-0.5">TF</span>
-                  <span className="text-xs font-black">{result.timeframe}</span>
-                </div>
-              </div>
-              
-              {(result.riskReward || result.riskLevel || result.duration || result.signalType) && (
-                <div className="w-full pt-4 border-t border-white/5 grid grid-cols-2 gap-3">
-                  {result.signalType && (
-                    <div className="glass-card p-2">
-                      <span className="block text-[8px] text-zinc-600 uppercase font-black mb-0.5">ESTILO</span>
-                      <span className="text-[10px] font-black tracking-widest">{result.signalType}</span>
-                    </div>
-                  )}
-                  {result.riskLevel && (
-                    <div className="glass-card p-2">
-                      <span className="block text-[8px] text-zinc-600 uppercase font-black mb-0.5">RISCO</span>
-                      <span className={cn(
-                        "text-[10px] font-black tracking-widest",
-                        result.riskLevel.toUpperCase() === 'LOW' ? "text-green-500" :
-                        result.riskLevel.toUpperCase() === 'HIGH' ? "text-brand-red" : "text-orange-500"
-                      )}>{result.riskLevel}</span>
-                    </div>
-                  )}
-                  {result.riskReward && (
-                    <div className="glass-card p-2">
-                      <span className="block text-[8px] text-zinc-600 uppercase font-black mb-0.5">RISCO/RETORNO</span>
-                      <span className="text-[10px] font-black font-mono">{result.riskReward}</span>
-                    </div>
-                  )}
-                  {result.duration && (
-                    <div className="glass-card p-2">
-                      <span className="block text-[8px] text-zinc-600 uppercase font-black mb-0.5">DURAÇÃO</span>
-                      <span className="text-[10px] font-black tracking-widest uppercase">{result.duration}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Trading Decision */}
-            <div className="glass-card space-y-4">
-              <div className="text-center">
-                <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest bg-white/5 px-2 py-0.5 rounded">
-                    {result.pair}
-                </span>
-              </div>
-              <div className={cn(
-                "w-full py-5 rounded-lg flex flex-col items-center justify-center gap-1",
-                result.decision === SignalType.BUY ? "bg-green-500/10 text-green-500" : 
-                result.decision === SignalType.SELL ? "bg-brand-red/10 text-brand-red" : 
-                "bg-zinc-500/10 text-zinc-500"
-              )}>
-                <span className="text-4xl font-black uppercase italic tracking-tighter">
-                  {result.decision === SignalType.BUY ? 'COMPRAR' : 
-                   result.decision === SignalType.SELL ? 'VENDER' : 
-                   'AGUARDAR'}
-                </span>
-                <span className="text-[8px] uppercase font-black tracking-widest opacity-60">Decisão QuantScan</span>
-              </div>
-
               {marketPrice !== null && (
-                <div className="flex flex-col items-center justify-center p-2 mb-2 bg-black/40 rounded border border-white/5">
-                  <span className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold">Preço de Mercado</span>
+                <div className="flex items-center justify-between bg-black/60 p-3 rounded border border-white/5">
+                  <span className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold flex items-center gap-2"><Activity size={12}/> MARKET PRICE</span>
                   <span className="font-mono text-lg font-black text-white">{marketPrice.toFixed(5)}</span>
                 </div>
               )}
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between p-3 glass-card bg-transparent border-white/5">
+              <div className="grid grid-cols-1 gap-2">
+                <div className="flex items-center justify-between p-2 bg-black/40 rounded border border-white/5 hover:border-white/10 transition-colors">
                   <div className="flex items-center gap-2">
-                    <Target size={14} className="text-zinc-600" />
-                    <span className="text-[9px] font-black text-zinc-500 uppercase">ENTRADA</span>
+                    <Target size={14} className="text-blue-500" />
+                    <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">ENTRY LEVEL</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <input 
-                      className="font-mono font-black text-sm bg-transparent border-b border-dashed border-white/20 text-right w-24 outline-none focus:border-white transition-colors text-white"
+                      className="font-mono font-bold text-sm bg-transparent border-b border-dashed border-white/20 text-right w-24 outline-none focus:border-white transition-colors text-white"
                       value={customAlertPrices['Entrada'] ?? result.entry}
                       onChange={(e) => handleCustomAlertPriceChange('Entrada', e.target.value)}
                     />
@@ -610,14 +599,15 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
                     </button>
                   </div>
                 </div>
-                <div className="flex items-center justify-between p-3 glass-card bg-transparent border-white/5">
+                
+                <div className="flex items-center justify-between p-2 bg-brand-red/5 rounded border border-brand-red/10">
                   <div className="flex items-center gap-2">
-                    <AlertTriangle size={14} className="text-brand-red/50" />
-                    <span className="text-[9px] font-black text-zinc-500 uppercase">STOP LOSS</span>
+                    <AlertTriangle size={14} className="text-brand-red" />
+                    <span className="text-[9px] font-black text-brand-red uppercase tracking-widest">STOP LOSS</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <input 
-                      className="font-mono font-black text-sm bg-transparent border-b border-dashed border-brand-red/30 text-right w-24 outline-none focus:border-brand-red transition-colors text-brand-red"
+                      className="font-mono font-bold text-sm bg-transparent border-b border-dashed border-brand-red/30 text-right w-24 outline-none focus:border-brand-red transition-colors text-brand-red"
                       value={customAlertPrices['Stop Loss'] ?? result.stopLoss}
                       onChange={(e) => handleCustomAlertPriceChange('Stop Loss', e.target.value)}
                     />
@@ -632,14 +622,15 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
                     </button>
                   </div>
                 </div>
-                <div className="flex items-center justify-between p-3 glass-card bg-transparent border-white/5">
+
+                <div className="flex items-center justify-between p-2 bg-green-500/5 rounded border border-green-500/10">
                   <div className="flex items-center gap-2">
-                    <ShieldCheck size={14} className="text-green-500/50" />
-                    <span className="text-[9px] font-black text-zinc-500 uppercase">TAKE PROFIT 1</span>
+                    <ShieldCheck size={14} className="text-green-500" />
+                    <span className="text-[9px] font-black text-green-500 uppercase tracking-widest">TAKE PROFIT 1</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <input 
-                      className="font-mono font-black text-sm bg-transparent border-b border-dashed border-green-500/30 text-right w-24 outline-none focus:border-green-500 transition-colors text-green-500"
+                      className="font-mono font-bold text-sm bg-transparent border-b border-dashed border-green-500/30 text-right w-24 outline-none focus:border-green-500 transition-colors text-green-500"
                       value={customAlertPrices['Take Profit 1'] ?? result.takeProfit}
                       onChange={(e) => handleCustomAlertPriceChange('Take Profit 1', e.target.value)}
                     />
@@ -656,14 +647,14 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
                 </div>
                 
                 {result.takeProfit2 && (
-                  <div className="flex items-center justify-between p-3 glass-card bg-transparent border-white/5">
+                  <div className="flex items-center justify-between p-2 bg-green-500/5 rounded border border-green-500/10">
                     <div className="flex items-center gap-2">
-                      <ShieldCheck size={14} className="text-green-500/50" />
-                      <span className="text-[9px] font-black text-zinc-500 uppercase">TAKE PROFIT 2</span>
+                      <ShieldCheck size={14} className="text-green-500" />
+                      <span className="text-[9px] font-black text-green-500 uppercase tracking-widest">TAKE PROFIT 2</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <input 
-                        className="font-mono font-black text-sm bg-transparent border-b border-dashed border-green-500/30 text-right w-24 outline-none focus:border-green-500 transition-colors text-green-500"
+                        className="font-mono font-bold text-sm bg-transparent border-b border-dashed border-green-500/30 text-right w-24 outline-none focus:border-green-500 transition-colors text-green-500"
                         value={customAlertPrices['Take Profit 2'] ?? result.takeProfit2}
                         onChange={(e) => handleCustomAlertPriceChange('Take Profit 2', e.target.value)}
                       />
@@ -681,14 +672,14 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
                 )}
 
                 {result.takeProfit3 && (
-                  <div className="flex items-center justify-between p-3 glass-card bg-transparent border-white/5">
+                  <div className="flex items-center justify-between p-2 bg-green-500/5 rounded border border-green-500/10">
                     <div className="flex items-center gap-2">
-                      <ShieldCheck size={14} className="text-green-500/50" />
-                      <span className="text-[9px] font-black text-zinc-500 uppercase">TAKE PROFIT 3</span>
+                      <ShieldCheck size={14} className="text-green-500" />
+                      <span className="text-[9px] font-black text-green-500 uppercase tracking-widest">TAKE PROFIT 3</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <input 
-                        className="font-mono font-black text-sm bg-transparent border-b border-dashed border-green-500/30 text-right w-24 outline-none focus:border-green-500 transition-colors text-green-500"
+                        className="font-mono font-bold text-sm bg-transparent border-b border-dashed border-green-500/30 text-right w-24 outline-none focus:border-green-500 transition-colors text-green-500"
                         value={customAlertPrices['Take Profit 3'] ?? result.takeProfit3}
                         onChange={(e) => handleCustomAlertPriceChange('Take Profit 3', e.target.value)}
                       />
@@ -750,16 +741,16 @@ export const AnalysisView: React.FC<{ userData?: any, onGoToHistory?: () => void
             
             <div className="glass-card space-y-4">
               <h4 className="text-[10px] font-black uppercase tracking-widest text-brand-red flex items-center gap-2">
-                <BrainCircuit size={14} /> ANÁLISE TÉCNICA (SMC + LIQ)
+                <BrainCircuit size={14} /> RECONHECIMENTO DE PADRÕES & ESTRUTURA
               </h4>
               <p className="text-xs text-zinc-400 leading-relaxed font-medium">
-                {result.tecnica}
+                {result.estrutura || result.tecnica}
               </p>
             </div>
             
             <div className="glass-card space-y-4">
               <h4 className="text-[10px] font-black uppercase tracking-widest text-green-500 flex items-center gap-2">
-                <TrendingUp size={14} /> ANÁLISE FUNDAMENTAL
+                <TrendingUp size={14} /> ANÁLISE FUNDAMENTAL & LIQUIDEZ
               </h4>
               <p className="text-xs text-zinc-400 leading-relaxed font-medium">
                 {result.fundamental}

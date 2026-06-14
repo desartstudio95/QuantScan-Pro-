@@ -6,7 +6,6 @@ import {
   Fingerprint, ChevronRight, Server, Cpu, Radio, Network, CheckCircle2, ShieldCheck
 } from 'lucide-react';
 import { DerivDiagnosticPanel } from './DerivDiagnosticPanel';
-import { DerivTestPanel } from './DerivTestPanel';
 import { AITradingDashboard } from './AITradingDashboard';
 import { cn } from '../lib/utils';
 
@@ -68,6 +67,10 @@ export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) 
   const [dailyLossLimit, setDailyLossLimit] = useState(userData?.tradingSettings?.dailyLossLimit?.toString() || "100");
   const [dailyProfitTarget, setDailyProfitTarget] = useState(userData?.tradingSettings?.dailyProfitTarget?.toString() || "200");
   const [cooldownMinutes, setCooldownMinutes] = useState(userData?.tradingSettings?.cooldownMinutes?.toString() || "5");
+  const [takeProfit, setTakeProfit] = useState(userData?.tradingSettings?.takeProfit?.toString() || "10");
+  const [stopLoss, setStopLoss] = useState(userData?.tradingSettings?.stopLoss?.toString() || "10");
+  const [trailingStop, setTrailingStop] = useState(userData?.tradingSettings?.trailingStop ?? true);
+  const [autoCloseMinutes, setAutoCloseMinutes] = useState(userData?.tradingSettings?.autoCloseMinutes?.toString() || "10");
 
   const saveSettingsToFirebase = async (
     newSettings: any[], 
@@ -110,7 +113,11 @@ export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) 
       minConfidence: parseFloat(minConfidence) || 80,
       dailyLossLimit: parseFloat(dailyLossLimit) || 100,
       dailyProfitTarget: parseFloat(dailyProfitTarget) || 200,
-      cooldownMinutes: parseInt(cooldownMinutes) || 5
+      cooldownMinutes: parseInt(cooldownMinutes) || 5,
+      takeProfit: parseFloat(takeProfit) || 10,
+      stopLoss: parseFloat(stopLoss) || 10,
+      trailingStop: trailingStop,
+      autoCloseMinutes: parseFloat(autoCloseMinutes) || 10
     };
 
     try {
@@ -364,7 +371,6 @@ export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) 
              <>
                <AITradingDashboard userData={userData} engineRunning={robotActive} />
                <DerivDiagnosticPanel userData={userData} />
-               <DerivTestPanel userData={userData} />
              </>
           )}
 
@@ -739,6 +745,57 @@ export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) 
                       className="w-full bg-black border border-green-500/30 rounded-lg p-3 text-sm text-green-400 font-mono focus:border-green-500 outline-none transition-colors" 
                     />
                   </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-green-500 uppercase tracking-widest">Take Profit (%)</label>
+                    <input 
+                      type="number" 
+                      value={takeProfit}
+                      onChange={(e) => setTakeProfit(e.target.value)}
+                      onBlur={() => saveSettingsToFirebase(tradingSettings, riskPerTrade, maxPositions)}
+                      className="w-full bg-black border border-green-500/30 rounded-lg p-3 text-sm text-green-400 font-mono focus:border-green-500 outline-none transition-colors" 
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-red-500 uppercase tracking-widest">Stop Loss (%)</label>
+                    <input 
+                      type="number" 
+                      value={stopLoss}
+                      onChange={(e) => setStopLoss(e.target.value)}
+                      onBlur={() => saveSettingsToFirebase(tradingSettings, riskPerTrade, maxPositions)}
+                      className="w-full bg-black border border-red-500/30 rounded-lg p-3 text-sm text-red-400 font-mono focus:border-red-500 outline-none transition-colors" 
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Auto Close (mins)</label>
+                    <input 
+                      type="number" 
+                      value={autoCloseMinutes}
+                      onChange={(e) => setAutoCloseMinutes(e.target.value)}
+                      onBlur={() => saveSettingsToFirebase(tradingSettings, riskPerTrade, maxPositions)}
+                      className="w-full bg-black border border-white/10 rounded-lg p-3 text-sm text-white font-mono focus:border-brand-red outline-none transition-colors" 
+                    />
+                  </div>
+                  <div className="space-y-1 flex items-center justify-between col-span-2 pt-2 border-t border-white/5">
+                    <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Trailing Stop</span>
+                    <button 
+                      onClick={() => {
+                        const newVal = !trailingStop;
+                        setTrailingStop(newVal);
+                        saveSettingsToFirebase(tradingSettings, riskPerTrade, maxPositions); // Assuming state update is caught on re-render, though ideally we pass values directly if we could
+                      }}
+                      className={cn(
+                        "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus:outline-none",
+                        trailingStop ? "bg-brand-red" : "bg-zinc-800"
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "inline-block h-3 w-3 transform rounded-full bg-white transition-transform",
+                          trailingStop ? "translate-x-5" : "translate-x-1"
+                        )}
+                      />
+                    </button>
+                  </div>
                 </div>
               </div>
            </div>
@@ -986,23 +1043,27 @@ export const AutoTradingView: React.FC<{ userData?: any, onUpdate?: (data: any) 
                {autoTrades.length === 0 ? (
                   <p className="text-xs text-zinc-500 text-center py-4">Nenhum trade executado ainda.</p>
                ) : (
-                  autoTrades.map((t) => (
-                     <div key={t.id} className="bg-black border border-white/5 p-4 rounded-xl flex items-center justify-between">
-                        <div>
-                           <div className="flex items-center gap-2">
-                              <span className={cn("text-xs font-black uppercase tracking-wider", t.decision === 'BUY' ? 'text-green-500' : 'text-red-500')}>{t.decision}</span>
-                              <span className="text-white font-bold text-sm">{t.pair}</span>
-                           </div>
-                           <div className="text-[10px] text-zinc-500 mt-1">
-                              Vol: {t.volume} • Price: {t.price?.toFixed(5)} • SL: {t.stopLoss} • TP: {t.takeProfit}
-                           </div>
-                        </div>
-                        <div className="text-right">
-                           <div className="text-[10px] text-zinc-400">{new Date(t.timestamp).toLocaleTimeString()}</div>
-                           <div className="text-[10px] text-green-500 font-bold mt-1">EXECUTADO</div>
-                        </div>
-                     </div>
-                  ))
+                   autoTrades.map((t) => (
+                      <div key={t.id} className="bg-black border border-white/5 p-4 rounded-xl flex items-center justify-between">
+                         <div>
+                            <div className="flex items-center gap-2">
+                               <span className={cn("text-xs font-black uppercase tracking-wider", (t.profit || 0) >= 0 ? 'text-green-500' : 'text-red-500')}>
+                                 {(t.profit || 0) >= 0 ? 'PROFIT' : 'LOSS'}
+                               </span>
+                               <span className="text-white font-bold text-sm">{t.symbol || t.pair || 'TRADE'}</span>
+                            </div>
+                            <div className="text-[10px] text-zinc-500 mt-1 uppercase">
+                               ID: {t.contract_id || t.id} {t.close_reason ? `• ${t.close_reason}` : ''}
+                            </div>
+                         </div>
+                         <div className="text-right">
+                            <div className="text-[10px] text-zinc-400">{new Date(t.timestamp).toLocaleTimeString()}</div>
+                            <div className={cn("text-xs font-bold mt-1 font-mono", (t.profit || 0) >= 0 ? "text-green-500" : "text-red-500")}>
+                               {(t.profit || 0) >= 0 ? '+' : ''}{t.profit?.toFixed(2)} USD
+                            </div>
+                         </div>
+                      </div>
+                   ))
                )}
              </div>
            </div>

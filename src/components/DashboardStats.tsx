@@ -6,14 +6,24 @@ import {
   BarChart, Bar, Cell,
   LineChart, Line, Legend
 } from 'recharts';
-import { TrendingUp, Award, Target, Activity, Flame, Calendar, Trophy } from 'lucide-react';
+import { TrendingUp, Award, Target, Activity, Flame, Calendar, Trophy, Wallet, ChevronDown, ChevronUp } from 'lucide-react';
 import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
+import axios from 'axios';
 
-export const DashboardStats: React.FC = () => {
+interface InstitutionalStats {
+  balance: number;
+  equity: number;
+  profitFactor: number;
+  expectancy: number;
+  drawdown: number;
+}
+
+export const DashboardStats: React.FC<{ userData?: any }> = ({ userData }) => {
   const [signals, setSignals] = useState<Signal[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPair, setSelectedPair] = useState<string>('');
+  const [instStats, setInstStats] = useState<InstitutionalStats>({ balance: 0, equity: 0, profitFactor: 0, expectancy: 0, drawdown: 0 });
 
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -37,6 +47,28 @@ export const DashboardStats: React.FC = () => {
 
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    const fetchBalance = async () => {
+      if (userData?.derivApiToken && userData?.derivAppId) {
+        try {
+            const token = userData.derivApiToken;
+            const appId = userData.derivAppId;
+            const res = await axios.get(`/api/deriv/balance?appId=${appId}`, { headers: { Authorization: `Bearer ${token}` } });
+            if (res.data?.balance) {
+                setInstStats(prev => ({ 
+                   ...prev, 
+                   balance: res.data.balance.balance,
+                   equity: res.data.balance.balance // simplifying equity as balance for now
+                }));
+            }
+        } catch (e) {
+            // ignore
+        }
+      }
+    };
+    fetchBalance();
+  }, [userData]);
 
   useEffect(() => {
     if (!selectedPair && signals.length > 0) {
@@ -96,13 +128,46 @@ export const DashboardStats: React.FC = () => {
     .sort((a, b) => a.timestamp - b.timestamp)
     .reduce((acc: any[], signal, index) => {
       const prevProfit = index > 0 ? acc[index - 1].profit : 0;
-      const change = signal.result === SignalResult.GAIN ? 50 : signal.result === SignalResult.LOSS ? -30 : 0;
+      // if signal has actual profit, use it, else approximate
+      const change = signal.profit 
+          ? signal.profit 
+          : (signal.result === SignalResult.GAIN ? 50 : signal.result === SignalResult.LOSS ? -30 : 0);
       acc.push({
         name: new Date(signal.timestamp).toLocaleDateString(),
         profit: prevProfit + change
       });
       return acc;
     }, []);
+    
+  // Drawdown
+  let peak = 0;
+  let maxDrawdown = 0;
+  chartData.forEach(d => {
+      if (d.profit > peak) peak = d.profit;
+      const dd = peak - d.profit;
+      if (dd > maxDrawdown) maxDrawdown = dd;
+  });
+  
+  // Profit Factor & Expectancy
+  let grossProfit = 0;
+  let grossLoss = 0;
+  signals.forEach(s => {
+      const p = s.profit ? s.profit : (s.result === SignalResult.GAIN ? 50 : s.result === SignalResult.LOSS ? -30 : 0);
+      if (p > 0) grossProfit += p;
+      else if (p < 0) grossLoss += Math.abs(p);
+  });
+  const profitFactor = grossLoss > 0 ? (grossProfit / grossLoss) : (grossProfit > 0 ? 99 : 0);
+  const expectancy = completedSignals > 0 ? ((grossProfit - grossLoss) / completedSignals) : 0;
+  
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  
+  const startOfWeek = new Date(today);
+  startOfWeek.setDate(today.getDate() - today.getDay());
+  
+  const profitToday = signals.filter(s => s.timestamp >= today.getTime()).reduce((sum, s) => sum + (s.profit || (s.result === SignalResult.GAIN ? 50 : s.result === SignalResult.LOSS ? -30 : 0)), 0);
+  const profitWeek = signals.filter(s => s.timestamp >= startOfWeek.getTime()).reduce((sum, s) => sum + (s.profit || (s.result === SignalResult.GAIN ? 50 : s.result === SignalResult.LOSS ? -30 : 0)), 0);
+  const profitMonthObj = signals.filter(s => new Date(s.timestamp).getMonth() === today.getMonth() && new Date(s.timestamp).getFullYear() === today.getFullYear()).reduce((sum, s) => sum + (s.profit || (s.result === SignalResult.GAIN ? 50 : s.result === SignalResult.LOSS ? -30 : 0)), 0);
 
   const timeframeStats = signals.reduce((acc: any[], signal) => {
     const existing = acc.find(i => i.name === signal.timeframe);
@@ -136,11 +201,42 @@ export const DashboardStats: React.FC = () => {
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <header>
         <h1 className="text-xl font-black italic tracking-tighter text-white flex items-center gap-3 uppercase">
-          <Trophy size={20} className="text-brand-red" />
-          Leaderboard & Performance Global
+          <Wallet size={20} className="text-brand-red" />
+          Dashboard Institucional
         </h1>
         <p className="text-zinc-500 mt-1 text-[10px] font-medium leading-none">Acompanhamento e transparência audível dos resultados do sistema.</p>
       </header>
+      
+      {/* Institutional Core Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+        <div className="bg-[#0a0000] border border-white/5 rounded-2xl p-5 shadow-[0_0_15px_rgba(255,0,0,0.05)] relative overflow-hidden">
+            <div className="absolute -top-10 -right-10 w-24 h-24 bg-brand-red/10 blur-3xl rounded-full" />
+            <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-black mb-1">Saldo Total</p>
+            <p className="text-2xl font-black text-white font-mono">${instStats.balance.toFixed(2)}</p>
+        </div>
+        <div className="bg-[#0a0000] border border-white/5 rounded-2xl p-5 relative overflow-hidden">
+            <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-black mb-1">Equity</p>
+            <p className="text-2xl font-black text-white font-mono">${instStats.equity.toFixed(2)}</p>
+        </div>
+        <div className="bg-[#0a0000] border border-white/5 rounded-2xl p-5 relative overflow-hidden">
+            <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-black mb-1">Lucro Hoje</p>
+            <p className={cn("text-2xl font-black font-mono", profitToday >= 0 ? "text-green-500" : "text-brand-red")}>
+                {profitToday >= 0 ? '+' : ''}{profitToday.toFixed(2)}
+            </p>
+        </div>
+        <div className="bg-[#0a0000] border border-white/5 rounded-2xl p-5 relative overflow-hidden">
+            <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-black mb-1">Lucro Semana</p>
+            <p className={cn("text-2xl font-black font-mono", profitWeek >= 0 ? "text-green-500" : "text-brand-red")}>
+                {profitWeek >= 0 ? '+' : ''}{profitWeek.toFixed(2)}
+            </p>
+        </div>
+        <div className="bg-[#0a0000] border border-white/5 rounded-2xl p-5 relative overflow-hidden">
+            <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-black mb-1">Lucro Mês</p>
+            <p className={cn("text-2xl font-black font-mono", profitMonthObj >= 0 ? "text-green-500" : "text-brand-red")}>
+                {profitMonthObj >= 0 ? '+' : ''}{profitMonthObj.toFixed(2)}
+            </p>
+        </div>
+      </div>
 
       <motion.div 
         initial="hidden"
@@ -153,9 +249,9 @@ export const DashboardStats: React.FC = () => {
         {[
           { label: 'Total Sinais', value: totalSignals, icon: Activity },
           { label: 'Taxa de Acerto', value: `${winRate.toFixed(1)}%`, icon: Award },
-          { label: 'Win Rate Mensal', value: `${monthlyWinRate.toFixed(1)}%`, icon: Calendar },
-          { label: 'Série de Vitórias', value: `${maxStreak} Seguida${maxStreak !== 1 ? 's' : ''}`, icon: Flame },
-          { label: 'Ratio Win/Loss', value: profitLossRatio, icon: Target },
+          { label: 'Expectancy', value: `$${expectancy.toFixed(2)}`, icon: Calendar },
+          { label: 'Drawdown Máx', value: `$${maxDrawdown.toFixed(2)}`, icon: ChevronDown },
+          { label: 'Profit Factor', value: profitFactor.toFixed(2), icon: Target },
           { label: 'Melhor Ativo', value: bestAsset, icon: TrendingUp },
         ].map((stat, i) => (
           <motion.div 
@@ -168,7 +264,7 @@ export const DashboardStats: React.FC = () => {
           >
             <stat.icon className="text-brand-red mb-3" size={20} />
             <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest">{stat.label}</p>
-            <p className="text-2xl font-black mt-0.5 text-white">{stat.value}</p>
+            <p className="text-2xl font-black mt-0.5 text-white truncate">{stat.value}</p>
           </motion.div>
         ))}
       </motion.div>

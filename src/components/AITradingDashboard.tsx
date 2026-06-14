@@ -3,7 +3,7 @@ import { AITradingEngine, RiskManager, AISignal } from '../services/aiTradingEng
 import { Activity, Target, TrendingUp, AlertCircle, Clock, Zap, X } from 'lucide-react';
 import axios from 'axios';
 import { cn } from '../lib/utils';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, query, where, getDocs, orderBy, limit, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 export interface ErrorLogDetail {
@@ -39,11 +39,13 @@ export const AITradingDashboard = ({ userData, engineRunning }: { userData: any,
 
         setErrorLogs(prev => [log, ...prev].slice(0, 100));
         setLastLog({ message: `Erro: ${log.message}`, isError: true, timestamp: log.timestamp });
-        console.error(customMessage, error);
+        console.error(customMessage, error && (error.message || String(error)));
     };
 
     const [stats, setStats] = useState({
         winRate: 68.5,
+        totalTrades: 0,
+        winTrades: 0,
         tradesToday: 0,
         profitToday: 0,
         lastTradeAction: '-',
@@ -52,7 +54,123 @@ export const AITradingDashboard = ({ userData, engineRunning }: { userData: any,
     });
     const statsRef = useRef(stats);
     useEffect(() => { statsRef.current = stats; }, [stats]);
+
+    // Fetch real stats on mount
+    useEffect(() => {
+        if (!userData?.uid) return;
+        const fetchRealStats = async () => {
+            try {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                
+                const q = query(
+                    collection(db, "users", userData.uid, "auto_trades"),
+                    orderBy("timestamp", "desc")
+                );
+                const snapshot = await getDocs(q);
+                
+                let winCount = 0;
+                let totalCount = 0;
+                let tradesTodayCount = 0;
+                let profitTodaySum = 0;
+                let lastAction = '-';
+                let lastResult = '-';
+                let lastTime = 0;
+                
+                snapshot.docs.forEach((doc, idx) => {
+                    const data = doc.data();
+                    const isWin = (data.profit || 0) >= 0;
+                    
+                    if (isWin) winCount++;
+                    totalCount++;
+                    
+                    if (data.timestamp >= today.getTime()) {
+                        tradesTodayCount++;
+                        profitTodaySum += (data.profit || 0);
+                    }
+                    
+                    if (idx === 0) {
+                        lastAction = data.symbol || '-';
+                        lastResult = isWin ? 'WIN' : 'LOSS';
+                        lastTime = data.timestamp;
+                    }
+                });
+
+                const computedWinRate = totalCount > 0 ? (winCount / totalCount) * 100 : 0;
+
+                setStats(prev => ({
+                   ...prev,
+                   winRate: Number(computedWinRate.toFixed(1)),
+                   totalTrades: totalCount,
+                   winTrades: winCount,
+                   tradesToday: tradesTodayCount,
+                   profitToday: profitTodaySum,
+                   lastTradeAction: lastAction,
+                   lastTradeResult: lastResult,
+                   lastTradeTime: lastTime
+                }));
+
+            } catch (err: any) {
+                console.error("Failed to load real stats", err?.message || String(err));
+            }
+        };
+        fetchRealStats();
+    }, [userData?.uid]);
     
+    const [aiMaxOpenPositions, setAiMaxOpenPositions] = useState(userData?.tradingSettings?.aiMaxOpenPositions?.toString() || "2");
+    const [aiTradeAmount, setAiTradeAmount] = useState(userData?.tradingSettings?.aiTradeAmount?.toString() || "1");
+    const [aiMinConfidence, setAiMinConfidence] = useState(userData?.tradingSettings?.aiMinConfidence?.toString() || "85");
+    const [aiAggressiveness, setAiAggressiveness] = useState(userData?.tradingSettings?.aiAggressiveness || "Balanced");
+    const [aiCooldownSeconds, setAiCooldownSeconds] = useState(userData?.tradingSettings?.aiCooldownSeconds?.toString() || "60");
+    const [aiAutoTrading, setAiAutoTrading] = useState(userData?.tradingSettings?.aiAutoTrading ?? false);
+    
+    // Risk settings
+    const [riskPerTrade, setRiskPerTrade] = useState(userData?.tradingSettings?.riskPerTrade?.toString() || "1");
+    const [dailyLossLimit, setDailyLossLimit] = useState(userData?.tradingSettings?.dailyLossLimit?.toString() || "100");
+    const [dailyTargetProfit, setDailyTargetProfit] = useState(userData?.tradingSettings?.dailyTargetProfit?.toString() || "50");
+    
+    const [isSavingSettings, setIsSavingSettings] = useState(false);
+
+    const handleAggressivenessChange = (mode: string) => {
+        setAiAggressiveness(mode);
+        let conf = "85";
+        if (mode === 'Conservador') conf = "90";
+        if (mode === 'Moderado') conf = "85";
+        if (mode === 'Agressivo') conf = "75";
+        setAiMinConfidence(conf);
+        
+        if (userData?.uid) {
+            updateDoc(doc(db, 'users', userData.uid), {
+                'tradingSettings.aiAggressiveness': mode,
+                'tradingSettings.aiMinConfidence': parseFloat(conf)
+            }).catch(e => console.error(e));
+        }
+    };
+
+    const saveAISettings = async () => {
+        if (!userData?.uid) return;
+        setIsSavingSettings(true);
+        try {
+            const userRef = doc(db, 'users', userData.uid);
+            await updateDoc(userRef, {
+                'tradingSettings.aiMaxOpenPositions': parseInt(aiMaxOpenPositions) || 2,
+                'tradingSettings.aiTradeAmount': parseFloat(aiTradeAmount) || 1,
+                'tradingSettings.aiMinConfidence': parseFloat(aiMinConfidence) || 85,
+                'tradingSettings.aiAggressiveness': aiAggressiveness,
+                'tradingSettings.aiCooldownSeconds': parseInt(aiCooldownSeconds) || 60,
+                'tradingSettings.aiAutoTrading': aiAutoTrading,
+                'tradingSettings.riskPerTrade': parseFloat(riskPerTrade) || 1,
+                'tradingSettings.dailyLossLimit': parseFloat(dailyLossLimit) || 100,
+                'tradingSettings.dailyTargetProfit': parseFloat(dailyTargetProfit) || 50
+            });
+            setLastLog({ message: "Configurações de AI salvas com sucesso.", isError: false, timestamp: Date.now() });
+        } catch(e: any) {
+            logDetailedError("Erro ao salvar AI settings", e);
+        } finally {
+            setIsSavingSettings(false);
+        }
+    };
+
     const token = userData?.savedDerivToken || userData?.mtPassword;
     const appId = userData?.derivAppId || '1089';
     const symbol = userData?.tradingSettings?.selectedAsset || 'R_100';
@@ -60,15 +178,21 @@ export const AITradingDashboard = ({ userData, engineRunning }: { userData: any,
     const activeCycleRef = useRef<boolean>(false);
     const lastSignalRef = useRef<number>(0);
     const monitoringTradesRef = useRef<number[]>([]);
+    const highestROILogs = useRef<Record<number, number>>({});
 
     useEffect(() => {
-        if (!engineRunning || userData?.mtPlatform !== 'deriv_api' || !token) return;
+        if (userData?.mtPlatform !== 'deriv_api' || !token) return;
         
         const executeCycle = async () => {
             if (activeCycleRef.current) return;
             activeCycleRef.current = true;
             
             try {
+                const tpPercent = parseFloat(userData?.tradingSettings?.takeProfit) || 10;
+                const slPercent = parseFloat(userData?.tradingSettings?.stopLoss) || 10;
+                const trailingStopEnabled = userData?.tradingSettings?.trailingStop ?? true;
+                const autoCloseSeconds = (parseFloat(userData?.tradingSettings?.autoCloseMinutes) || 10) * 60;
+                
                 // 1. Monitor Phase
                 const positionsToKeep: number[] = [];
                 for (const contractId of monitoringTradesRef.current) {
@@ -82,20 +206,55 @@ export const AITradingDashboard = ({ userData, engineRunning }: { userData: any,
                         
                         if (contract.is_sold) {
                             setLastLog({ message: `Trade ${contractId} fechado externamente. Lucro: $${contract.profit.toFixed(2)}`, isError: false, timestamp: Date.now() });
-                            setStats(prev => ({
-                                ...prev,
-                                profitToday: prev.profitToday + contract.profit,
-                                lastTradeResult: contract.profit >= 0 ? 'WIN' : 'LOSS'
-                            }));
+                            setStats(prev => {
+                                const isWin = contract.profit >= 0;
+                                const newTotal = prev.totalTrades + 1;
+                                const newWin = prev.winTrades + (isWin ? 1 : 0);
+                                return {
+                                    ...prev,
+                                    totalTrades: newTotal,
+                                    winTrades: newWin,
+                                    winRate: Number((newTotal > 0 ? (newWin / newTotal) * 100 : 0).toFixed(1)),
+                                    profitToday: prev.profitToday + contract.profit,
+                                    lastTradeResult: isWin ? 'WIN' : 'LOSS'
+                                };
+                            });
+                            delete highestROILogs.current[contractId];
                             continue;
                         }
                         
                         const buyPrice = contract.buy_price;
-                        const roi = contract.profit / buyPrice;
+                        const roi = contract.profit / buyPrice; // Current ROI in decimals (e.g., 0.1 = 10%)
                         const ageSeconds = (Date.now() / 1000) - contract.date_start;
                         
-                        // Close if +/- 10% ROI, or after 60 seconds
-                        if (roi >= 0.1 || roi <= -0.1 || ageSeconds > 60) {
+                        // Update Highest ROI
+                        const roiPercent = roi * 100;
+                        if (!highestROILogs.current[contractId]) highestROILogs.current[contractId] = roiPercent;
+                        if (roiPercent > highestROILogs.current[contractId]) highestROILogs.current[contractId] = roiPercent;
+                        
+                        let shouldClose = false;
+                        let closeReason = "";
+                        
+                        // TP / SL Logic
+                        if (roiPercent >= tpPercent) {
+                            shouldClose = true;
+                            closeReason = `Take Profit atingido (+${roiPercent.toFixed(2)}%)`;
+                        } else if (roiPercent <= -slPercent) {
+                            shouldClose = true;
+                            closeReason = `Stop Loss atingido (${roiPercent.toFixed(2)}%)`;
+                        } else if (trailingStopEnabled && highestROILogs.current[contractId] > 5) {
+                            // Example Trailing Stop: If ROI drops by 5% from highest, and we are in profit
+                            const dropFromHigh = highestROILogs.current[contractId] - roiPercent;
+                            if (dropFromHigh >= 5 && roiPercent > 0) {
+                                shouldClose = true;
+                                closeReason = `Trailing Stop ativado (Drop from high, ROI: ${roiPercent.toFixed(2)}%)`;
+                            }
+                        } else if (ageSeconds > autoCloseSeconds) {
+                            shouldClose = true;
+                            closeReason = `Auto Close Time limit reached`;
+                        }
+                        
+                        if (shouldClose) {
                             try {
                                 await axios.post(`/api/deriv/close-trade?appId=${appId}`, { contractId }, {
                                     headers: { Authorization: `Bearer ${token}` }
@@ -106,19 +265,30 @@ export const AITradingDashboard = ({ userData, engineRunning }: { userData: any,
                                 });
                                 const finalProfit = finalRes.data?.contract?.profit || contract.profit;
                                 
-                                setLastLog({ message: `Trade ${contractId} finalizado. Lucro: $${finalProfit.toFixed(2)}`, isError: false, timestamp: Date.now() });
-                                setStats(prev => ({
-                                    ...prev,
-                                    profitToday: prev.profitToday + finalProfit,
-                                    lastTradeResult: finalProfit >= 0 ? 'WIN' : 'LOSS'
-                                }));
+                                setLastLog({ message: `Trade ${contractId} finalizado. ${closeReason}. Lucro: $${finalProfit.toFixed(2)}`, isError: false, timestamp: Date.now() });
+                                setStats(prev => {
+                                    const isWin = finalProfit >= 0;
+                                    const newTotal = prev.totalTrades + 1;
+                                    const newWin = prev.winTrades + (isWin ? 1 : 0);
+                                    return {
+                                        ...prev,
+                                        totalTrades: newTotal,
+                                        winTrades: newWin,
+                                        winRate: Number((newTotal > 0 ? (newWin / newTotal) * 100 : 0).toFixed(1)),
+                                        profitToday: prev.profitToday + finalProfit,
+                                        lastTradeResult: isWin ? 'WIN' : 'LOSS'
+                                    };
+                                });
+                                
+                                delete highestROILogs.current[contractId];
                                 
                                 if (userData?.uid) {
                                     await addDoc(collection(db, "users", userData.uid, "auto_trades"), {
                                         contract_id: contractId,
                                         profit: finalProfit,
                                         timestamp: Date.now(),
-                                        symbol: contract.underlying
+                                        symbol: contract.underlying,
+                                        close_reason: closeReason
                                     }).catch(e => logDetailedError("Erro ao salvar trade no firestore", e, "firebase/addDoc"));
                                 }
                             } catch (e: any) {
@@ -129,8 +299,13 @@ export const AITradingDashboard = ({ userData, engineRunning }: { userData: any,
                             positionsToKeep.push(contractId);
                         }
                     } catch (e: any) {
+                        const errMessage = e.response?.data?.error || e.message;
                         logDetailedError("Failed to fetch contract status", e, `/api/deriv/contract/${contractId}?appId=${appId}`);
-                        positionsToKeep.push(contractId);
+                        if (e.response?.status === 500 && errMessage.includes('error occurred while processing')) {
+                            // Don't keep it, it's a dead/invalid contract on Deriv side
+                        } else {
+                            positionsToKeep.push(contractId);
+                        }
                     }
                 }
                 
@@ -158,8 +333,27 @@ export const AITradingDashboard = ({ userData, engineRunning }: { userData: any,
                     setLastSignal(signal);
                     
                     const openPositions = monitoringTradesRef.current.length;
-                    const balance = 10000; // Mock or fetch balance
-                    let amount = parseFloat(userData?.tradingSettings?.fixedLot || "1");
+                    
+                    // Fetch real balance from Deriv if possible
+                    let balance = 10000; 
+                    try {
+                        const balRes = await axios.get(`/api/deriv/balance?appId=${appId}`, { headers: { Authorization: `Bearer ${token}` } });
+                        if (balRes.data?.balance?.balance) {
+                            balance = balRes.data.balance.balance;
+                        }
+                    } catch (e) {
+                         // ignore and fallback
+                    }
+                    
+                    let amount = 1;
+                    const riskPercent = parseFloat(userData?.tradingSettings?.riskPerTrade) || 0;
+                    if (riskPercent > 0) {
+                        amount = balance * (riskPercent / 100);
+                    } else {
+                        const engineTradeVal = Number(aiTradeAmount);
+                        amount = !isNaN(engineTradeVal) ? engineTradeVal : 1;
+                    }
+                    
                     const MIN_STAKE = 1;
                     const requestedAmount = amount;
                     if (amount < MIN_STAKE) {
@@ -172,22 +366,35 @@ export const AITradingDashboard = ({ userData, engineRunning }: { userData: any,
                         setLastLog({ message: `Stake validado: Requested Amount: ${requestedAmount} -> Final Amount Sent: ${amount}`, isError: false, timestamp: Date.now() });
                     }
                     
+                    const engineTargetProfitStr = userData?.tradingSettings?.takeProfit;
+                    const tpValue = parseFloat(engineTargetProfitStr) || 10;
+                    
+                    const engineMaxOpen = Number(aiMaxOpenPositions);
+                    const engineMinConf = Number(aiMinConfidence);
+                    
                     const riskLimits = { 
                         maxDailyLoss: parseFloat(userData?.tradingSettings?.dailyLossLimit) || 100, 
-                        maxOpenPositions: parseInt(userData?.tradingSettings?.maxPositions) || 3, 
+                        maxOpenPositions: !isNaN(engineMaxOpen) ? engineMaxOpen : 2, 
                         maxTradeValue: parseFloat(userData?.tradingSettings?.dailyLossLimit) || 50,
-                        minConfidence: parseFloat(userData?.tradingSettings?.minConfidence) || 80
+                        minConfidence: !isNaN(engineMinConf) ? engineMinConf : 85,
+                        dailyProfitTarget: parseFloat(userData?.tradingSettings?.dailyTargetProfit) || 50
                     };
                     
-                    const cooldownMinutes = parseFloat(userData?.tradingSettings?.cooldownMinutes) || 5;
+                    const engineCooldown = Number(aiCooldownSeconds);
+                    const cooldownMs = (!isNaN(engineCooldown) ? engineCooldown : 60) * 1000;
                     const timeSinceLastTrade = Date.now() - statsRef.current.lastTradeTime;
                     
-                    if (statsRef.current.lastTradeTime > 0 && timeSinceLastTrade < cooldownMinutes * 60 * 1000) {
-                        setLastLog({ message: `Sinal ignorado (Cooldown): Aguarde ${Math.ceil((cooldownMinutes * 60 * 1000 - timeSinceLastTrade) / 1000)}s`, isError: true, timestamp: Date.now() });
+                    if (statsRef.current.lastTradeTime > 0 && timeSinceLastTrade < cooldownMs) {
+                        setLastLog({ message: `Sinal ignorado (Cooldown): Aguarde ${Math.ceil((cooldownMs - timeSinceLastTrade) / 1000)}s`, isError: true, timestamp: Date.now() });
                         return; // skip execution
                     }
 
-                    const validation = RiskManager.validate(signal, openPositions, balance, riskLimits, amount, statsRef.current.profitToday, engineRunning);
+                    if (!aiAutoTrading) {
+                        setLastLog({ message: "Sinal Gerado. (Auto-Trading Desligado, nenhuma ordem enviada).", isError: false, timestamp: Date.now() });
+                        return;
+                    }
+
+                    const validation = RiskManager.validate(signal, openPositions, balance, riskLimits, amount, statsRef.current.profitToday, aiAutoTrading);
                     
                     if (!validation.valid) {
                         setLastLog({ message: `Sinal rejeitado: ${validation.reason}`, isError: true, timestamp: Date.now() });
@@ -232,7 +439,7 @@ export const AITradingDashboard = ({ userData, engineRunning }: { userData: any,
             clearInterval(intervalId);
             activeCycleRef.current = false;
         };
-    }, [engineRunning, token, appId, symbol, userData]);
+    }, [engineRunning, aiAutoTrading, aiMaxOpenPositions, aiTradeAmount, aiMinConfidence, aiCooldownSeconds, token, appId, symbol, userData]);
 
     return (
         <div className="bg-[#0a0000] border border-brand-red/20 rounded-2xl p-5 space-y-4 shadow-[0_0_20px_rgba(255,0,0,0.05)]">
@@ -255,6 +462,114 @@ export const AITradingDashboard = ({ userData, engineRunning }: { userData: any,
                    </span>
                 </div>
             </h3>
+
+            {/* AI Trading Settings Panel */}
+            <div className="bg-black/40 border border-white/5 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between mb-2 pb-2 border-b border-white/5">
+                    <span className="text-xs font-black uppercase tracking-wider text-white">AI Trading Settings</span>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                        <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">{aiAutoTrading ? 'Auto On' : 'Auto Off'}</span>
+                        <div className={cn("w-8 h-4 rounded-full transition-colors relative", aiAutoTrading ? "bg-brand-red" : "bg-zinc-700")}>
+                            <div className={cn("absolute top-0.5 bottom-0.5 w-3 rounded-full bg-white transition-all shadow", aiAutoTrading ? "left-4.5" : "left-0.5")}/>
+                        </div>
+                        <input type="checkbox" className="hidden" checked={aiAutoTrading} onChange={e => {
+                            const val = e.target.checked;
+                            setAiAutoTrading(val);
+                            if (userData?.uid) {
+                                updateDoc(doc(db, 'users', userData.uid), {
+                                    'tradingSettings.aiAutoTrading': val
+                                }).then(() => setLastLog({ message: "Auto Trading " + (val ? "Ativado" : "Desativado"), isError: false, timestamp: Date.now() })).catch((err: any) => console.error(err?.message || err));
+                            }
+                        }} />
+                    </label>
+                </div>
+                
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div className="space-y-1">
+                        <label className="text-[9px] uppercase font-bold text-zinc-500 tracking-widest">Max Open Positions</label>
+                        <input 
+                            type="number" 
+                            className="w-full bg-black border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-white focus:border-brand-red outline-none transition-colors"
+                            value={aiMaxOpenPositions}
+                            onChange={(e) => setAiMaxOpenPositions(e.target.value)}
+                            onBlur={saveAISettings}
+                        />
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-[9px] uppercase font-bold text-zinc-500 tracking-widest">Trade Amount (USD)</label>
+                        <input 
+                            type="number" 
+                            step="1"
+                            className="w-full bg-black border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-white focus:border-brand-red outline-none transition-colors"
+                            value={aiTradeAmount}
+                            onChange={(e) => setAiTradeAmount(e.target.value)}
+                            onBlur={saveAISettings}
+                        />
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-[9px] uppercase font-bold text-zinc-500 tracking-widest flex items-center gap-1">Modo Copy Trading <span className="w-1.5 h-1.5 bg-brand-red rounded-full animate-pulse ml-1"></span></label>
+                        <select 
+                            className="w-full bg-black border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-white focus:border-brand-red outline-none transition-colors appearance-none"
+                            value={aiAggressiveness}
+                            onChange={(e) => handleAggressivenessChange(e.target.value)}
+                        >
+                            <option value="Conservador">Conservador (Risco Baixo)</option>
+                            <option value="Moderado">Moderado (Risco Médio)</option>
+                            <option value="Agressivo">Agressivo (Risco Alto)</option>
+                        </select>
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-[9px] uppercase font-bold text-zinc-500 tracking-widest">Cooldown (Sec)</label>
+                        <input 
+                            type="number" 
+                            className="w-full bg-black border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-white focus:border-brand-red outline-none transition-colors"
+                            value={aiCooldownSeconds}
+                            onChange={(e) => setAiCooldownSeconds(e.target.value)}
+                            onBlur={saveAISettings}
+                        />
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                        <label className="text-[9px] uppercase font-bold text-zinc-500 tracking-widest">Risco por Operação (%)</label>
+                        <select 
+                            className="w-full bg-black border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-white focus:border-brand-red outline-none transition-colors appearance-none"
+                            value={riskPerTrade}
+                            onChange={(e) => setRiskPerTrade(e.target.value)}
+                            onBlur={saveAISettings}
+                        >
+                            <option value="0.5">0.5%</option>
+                            <option value="1">1%</option>
+                            <option value="2">2%</option>
+                            <option value="3">3%</option>
+                            <option value="5">5%</option>
+                        </select>
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-[9px] uppercase font-bold text-zinc-500 tracking-widest">Perda Máxima Diária ($)</label>
+                        <input 
+                            type="number" 
+                            step="1"
+                            className="w-full bg-black border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-white focus:border-brand-red outline-none transition-colors"
+                            value={dailyLossLimit}
+                            onChange={(e) => setDailyLossLimit(e.target.value)}
+                            onBlur={saveAISettings}
+                        />
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-[9px] uppercase font-bold text-zinc-500 tracking-widest">Meta Diária ($)</label>
+                        <input 
+                            type="number" 
+                            step="1"
+                            className="w-full bg-black border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-white focus:border-brand-red outline-none transition-colors"
+                            value={dailyTargetProfit}
+                            onChange={(e) => setDailyTargetProfit(e.target.value)}
+                            onBlur={saveAISettings}
+                        />
+                    </div>
+                </div>
+            </div>
 
             {/* Performance Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -372,7 +687,13 @@ export const AITradingDashboard = ({ userData, engineRunning }: { userData: any,
                                         <div className="mb-2">
                                             <div className="text-zinc-600 uppercase tracking-widest text-[9px]">Payload:</div>
                                             <pre className="text-zinc-400 bg-black/50 p-2 rounded mt-1 overflow-x-auto whitespace-pre-wrap">
-                                                {JSON.stringify(log.payload, null, 2)}
+                                                {(() => {
+                                                    try {
+                                                        return JSON.stringify(log.payload, null, 2);
+                                                    } catch (e) {
+                                                        return "[Circular or Unstringifiable Payload]";
+                                                    }
+                                                })()}
                                             </pre>
                                         </div>
                                     )}
