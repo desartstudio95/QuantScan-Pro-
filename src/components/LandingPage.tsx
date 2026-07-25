@@ -167,13 +167,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewPl
             {[
               {
                 icon: BarChart3,
-                title: "Robô Auto-Scanner",
-                desc: "Análise autônoma em background. O nosso Robô vasculha o mercado 24/7 e dispara sinais automaticamente, sem necessidade de operação manual."
+                title: "Scanner",
+                desc: "Análise autônoma em background. O nosso Robô vasculha o mercado 24/7 e dispara alertas, sem necessidade de pesquisa manual."
               },
               {
                 icon: ShieldCheck,
-                title: "Auto-Trading & Machine Learning",
-                desc: "Integração via Webhooks/API. A IA possui Modo Adaptativo Avançado, aprendendo continuamente e executando compras e vendas direto na sua conta."
+                title: "Machine Learning",
+                desc: "A IA possui Modo Adaptativo Avançado, aprendendo continuamente para recomendar compras e vendas."
               },
               {
                 icon: Globe,
@@ -268,18 +268,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewPl
         <div className="max-w-4xl mx-auto space-y-12 text-center md:text-left">
           <div className="space-y-4">
             <h2 className="text-3xl md:text-4xl font-black uppercase italic tracking-tighter text-white">
-              IA <span className="text-brand-red">QuantScanner</span>: <br className="hidden md:block" /> O Futuro do Automático.
+              IA <span className="text-brand-red">QuantScanner</span>: <br className="hidden md:block" /> Analise de forma inteligente.
             </h2>
             <p className="text-zinc-400 text-lg">
-              Agora, mais do que analisar, o **IA QuantScanner** executa. Integre a sua conta de corretora favorita (Deriv, Binance, Exness, FXPRO, Just Market, XM GLOBAL) via Webhook/API Segura, e deixe o robô operar baseado na nossa liderança comprovada de Win-Rate.
+              Agora, mais do que analisar, o **IA QuantScanner** recomenda. Receba sinais baseados na nossa liderança comprovada de Win-Rate.
             </p>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="space-y-2">
-              <h4 className="font-black uppercase tracking-widest text-brand-red">⚡ AUTO-TRADING</h4>
-              <p className="text-sm text-zinc-500">Execução direta na corretora via API. Stop loss, take profit e gestão de risco (Lot) 100% autônomos.</p>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-2">
               <h4 className="font-black uppercase tracking-widest text-brand-red">🏆 LEADERBOARDS</h4>
               <p className="text-sm text-zinc-500">Acompanhe a curva de equidade real, série de vitórias e a taxa de acerto do mês diretamente no painel global.</p>

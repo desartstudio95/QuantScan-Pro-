@@ -6,7 +6,6 @@
 import React, { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
 import { AnalysisView } from './components/AnalysisView';
-import { AutoTradingView } from './components/AutoTradingView';
 import { SignalHistory } from './components/SignalHistory';
 import { DashboardStats } from './components/DashboardStats';
 import { PlansView } from './components/PlansView';
@@ -32,7 +31,6 @@ declare global {
   }
 }
 
-import { MultiAccountManager } from './components/MultiAccountManager';
 import { AutoScanner247 } from './components/AutoScanner247';
 import { EconomicCalendar } from './components/EconomicCalendar';
 
@@ -637,12 +635,10 @@ export default function App() {
             <h2 className="text-2xl font-black italic uppercase tracking-tighter text-white">
               {activeTab === 'scan' && 'Scanner de IA'}
               {activeTab === 'autoScanner' && 'Auto Scanner 24/7'}
-              {activeTab === 'autoTrade' && 'Auto Trading'}
               {activeTab === 'calendar' && 'Calendário Econômico'}
               {activeTab === 'history' && 'Histórico de Sinais'}
               {activeTab === 'stats' && 'Performance & Dados'}
               {activeTab === 'profile' && 'Perfil do Usuário'}
-              {activeTab === 'multiAccount' && 'Multi Account Manager'}
               {activeTab === 'admin' && 'Painel Administrativo'}
             </h2>
             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">
@@ -711,12 +707,10 @@ export default function App() {
             >
               {activeTab === 'scan' && <AnalysisView userData={userData} onGoToHistory={() => setActiveTab('history')} />}
               {activeTab === 'autoScanner' && <AutoScanner247 userData={userData} />}
-              {activeTab === 'autoTrade' && <AutoTradingView userData={userData} onUpdate={setUserData} onNavigate={setActiveTab} isAdmin={isAdmin} />}
               {activeTab === 'calendar' && <EconomicCalendar />}
               {activeTab === 'history' && <SignalHistory />}
               {activeTab === 'stats' && <DashboardStats userData={userData} />}
               {activeTab === 'profile' && <ProfileView user={user} userData={userData} onUpdate={setUserData} onDeleted={handleLogout} />}
-              {activeTab === 'multiAccount' && isAdmin && <MultiAccountManager userData={userData} />}
               {activeTab === 'admin' && isAdmin && <AdminDashboard />}
             </motion.div>
           </AnimatePresence>

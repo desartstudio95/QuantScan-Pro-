@@ -250,8 +250,7 @@ export const PlansView: React.FC<PlansViewProps> = ({ isUnauthenticated, onGetSt
             "Apenas Curto Prazo (Scalping)",
             "Score Básico de Probabilidade",
             "Análise SMC (Smart Money)",
-            "Sem histórico completo",
-            "Auto-Trading: Indisponível"
+            "Sem histórico completo"
           ]}
         />
         <PlanCard 
@@ -265,8 +264,7 @@ export const PlansView: React.FC<PlansViewProps> = ({ isUnauthenticated, onGetSt
             "Scalping & Intraday",
             "Score Básico de Probabilidade",
             "Risco/Retorno e Stop Loss",
-            "Suporte via comunidade",
-            "Auto-Trading: Indisponível"
+            "Suporte via comunidade"
           ]}
         />
         <PlanCard 
@@ -281,7 +279,7 @@ export const PlansView: React.FC<PlansViewProps> = ({ isUnauthenticated, onGetSt
             "15 análises por dia",
             "Análises de Longo Prazo",
             "Multi Time Frame (MTF) Integrado",
-            "Auto-Trading (Deriv, Binance, etc)",
+            "Integração de corretoras externa",
             "Filtro Anti-Fake Breakout (IA)",
             "Histórico completo de sinais"
           ]}
@@ -289,12 +287,12 @@ export const PlansView: React.FC<PlansViewProps> = ({ isUnauthenticated, onGetSt
         <PlanCard 
           title="Plano Elite"
           price="7.500 MT"
-          description="Acesso total às ferramentas institucionais e Auto-Trading VPS."
+          description="Acesso total às ferramentas institucionais e VPS dedicada."
           buttonText="Ser Elite"
           onClick={() => handlePaymentAction("Plano Elite")}
           features={[
             "30 análises por dia",
-            "Auto-Trading + Gestão de Risco",
+            "Gestão de Risco Avançada",
             "SMC Avançado + VWAP & CVD",
             "Análise Fundamental + Impacto",
             "Machine Learning Avançado",
@@ -311,7 +309,7 @@ export const PlansView: React.FC<PlansViewProps> = ({ isUnauthenticated, onGetSt
           onClick={() => handlePaymentAction("Plano Lifetime")}
           features={[
             "Análises Ilimitadas",
-            "Tudo do Plano Elite com Auto-Trading",
+            "Tudo do Plano Elite",
             "Acesso vitalício (Sem mensalidade)",
             "Early access a novas features",
             "Cursos exclusivos QuantScan",

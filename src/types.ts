@@ -30,6 +30,7 @@ export interface Signal {
   result: SignalResult;
   screenshotUrl?: string;
   userId: string;
+  profit?: number;
   // QuantScan IA fields
   mode: string;
   pair: string;

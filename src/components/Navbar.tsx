@@ -13,7 +13,6 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, isAdmin
   const mainTabs = [
     { id: 'scan', label: 'Scan IA', icon: LayoutDashboard },
     { id: 'autoScanner', label: 'Auto Scanner', icon: Activity },
-    { id: 'autoTrade', label: 'Auto Trading', icon: Cpu },
     { id: 'calendar', label: 'Calendário', icon: CalendarIcon },
     { id: 'history', label: 'Histórico', icon: History },
     { id: 'stats', label: 'Estatísticas', icon: PieChart },
@@ -24,7 +23,6 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, isAdmin
   ];
 
   if (isAdmin) {
-    accountTabs.push({ id: 'multiAccount', label: 'Multi Account', icon: Users });
     accountTabs.push({ id: 'admin', label: 'Admin', icon: ShieldCheck });
   }
 

@@ -77,7 +77,7 @@ async function getCurrentPriceProxy(symbol: string): Promise<number | null> {
         const result = yfRes.data.chart.result[0];
         return parseFloat(result.meta.regularMarketPrice);
     } catch(e: any) {
-        console.warn("Yahoo Finance error:", e.message);
+        // Suppress yahoo finance errors to avoid console spam
     }
 
     return null;
@@ -918,7 +918,7 @@ const sendTelegramAlertServer = async (text: string, botToken: string, chatId: s
         res.json({ values: [] });
       }
     } catch (error: any) {
-      console.error(`Error fetching proxy History for ${symbol}:`, error.message);
+      // Suppress history fetch errors
       res.json({ values: [] });
     }
   });
@@ -1006,6 +1006,41 @@ const sendTelegramAlertServer = async (text: string, botToken: string, chatId: s
        console.error("Economic calendar error:", e.message);
        return res.status(500).json({ success: false, error: "Failed to fetch calendar data" });
     }
+  });
+
+  // Webhook para MetaTrader 4/5 EA e Telegram Bots
+  app.post("/api/mt-scanner", async (req, res) => {
+     try {
+         const { imageBase64, metadata, preferredMode, userPlan, preferredStyle } = req.body;
+         
+         if (!imageBase64) {
+             return res.status(400).json({ error: "Missing imageBase64" });
+         }
+
+         // Import the service dynamically since this is server-side and geminiService might use client-side env format
+         // Actually, let's just make the fetch call directly to Gemini API here to avoid Vite env issues.
+         const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+         const systemInstruction = `# QUANTSCAN AI - DYNAMIC PROMPT\n\nAnalise o gráfico.`;
+         
+         const payload = {
+             contents: [
+                 {
+                     parts: [
+                         { text: `Analise o gráfico financeiro. METADADOS: ${JSON.stringify(metadata || {})}` },
+                         { inlineData: { mimeType: "image/jpeg", data: imageBase64 } }
+                     ]
+                 }
+             ],
+             systemInstruction: { parts: [{ text: systemInstruction }] }
+         };
+
+         const geminiRes = await axios.post(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent?key=${GEMINI_API_KEY}`, payload);
+         
+         return res.json({ success: true, data: geminiRes.data });
+     } catch (e: any) {
+         console.error("MT Scanner webhook error:", e.message);
+         return res.status(500).json({ error: "Scanner analysis failed" });
+     }
   });
 
   // Vite middleware for development

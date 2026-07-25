@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Signal, SignalResult, SignalType } from '../types';
 import { motion } from 'motion/react';
+import { cn } from '../lib/utils';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Cell,

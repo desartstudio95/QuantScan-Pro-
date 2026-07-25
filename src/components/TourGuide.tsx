@@ -13,7 +13,7 @@ export const TourGuide = ({ hasCompletedTour }: { hasCompletedTour?: boolean }) 
     { target: '.tour-step-1', content: 'Bem-vindo ao QuantScan! Aqui é onde tudo acontece. Envie a foto de um gráfico para análise.', title: 'Análise por IA' },
     { target: '.tour-step-2', content: 'Escolha entre Análise Técnica, Fundamentalista ou Híbrida baseado em sua estratégia.', title: 'Tipo de Análise' },
     { target: '.tour-step-3', content: 'Defina seu Estilo de Trading (Scalping, Day Trading). A IA adapta o risco e alvos para você.', title: 'Estilo de Trading' },
-    { target: '.tour-step-4', content: 'Navegue pelo menu para acessar a aba Histórico, Dashboard Elite e o Auto-Trading!', title: 'Menu Principal' }
+    { target: '.tour-step-4', content: 'Navegue pelo menu para acessar a aba Histórico e o Scanner de IA!', title: 'Menu Principal' }
   ];
 
   useEffect(() => {

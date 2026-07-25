@@ -249,7 +249,6 @@ export const fetchCurrentPrice = async (symbol: string): Promise<number | null> 
             resolve(data.tick.quote);
             ws.close();
           } else if (data.error) {
-             console.error("Deriv WS Error:", data.error);
              resolve(null);
              ws.close();
           }

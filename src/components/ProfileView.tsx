@@ -283,7 +283,7 @@ export const ProfileView: React.FC<{
                          </label>
                          <label className="flex items-center gap-2 text-xs font-medium text-zinc-300 cursor-pointer">
                              <input type="checkbox" checked={notifyOpen} onChange={(e) => { setNotifyOpen(e.target.checked); handleUpdate(e as any); }} className="accent-brand-red" />
-                             Operação Aberta (Auto)
+                             Sinal Emitido
                          </label>
                          <label className="flex items-center gap-2 text-xs font-medium text-zinc-300 cursor-pointer">
                              <input type="checkbox" checked={notifyClose} onChange={(e) => { setNotifyClose(e.target.checked); handleUpdate(e as any); }} className="accent-brand-red" />
